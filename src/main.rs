@@ -3,15 +3,28 @@ use std::path;
 use std::process;
 
 mod configuration;
+mod presentation;
 
 fn run<P>(
-    _root: P,
-    _configuration: configuration::Configuration,
+    root: P,
+    configuration: configuration::Configuration,
 ) -> Result<(), String>
 where
     P: AsRef<path::Path>,
 {
-    unimplemented!();
+    let arena = comrak::Arena::new();
+    let _presentation = presentation::load(
+        &arena,
+        root.as_ref().join(&configuration.source.path),
+    )
+    .map_err(|e| {
+        format!(
+            "Failed to load markdown document {}: {}",
+            configuration.source.path, e
+        )
+    })?;
+
+    Ok(())
 }
 
 /// Initialises the application and returns the root directory and
