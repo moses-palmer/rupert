@@ -13,7 +13,7 @@ where
     P: AsRef<path::Path>,
 {
     let arena = comrak::Arena::new();
-    let _presentation = presentation::load(
+    let presentation = presentation::load(
         &arena,
         root.as_ref().join(&configuration.source.path),
     )
@@ -23,6 +23,17 @@ where
             configuration.source.path, e
         )
     })?;
+
+    let _pages = Ok(presentation
+        .pages(configuration.page_break.clone().unwrap_or_default())
+        .collect::<Vec<_>>())
+    .and_then(|pages| {
+        if pages.len() < 1 {
+            Err(format!("Invalid presentation: no pages"))
+        } else {
+            Ok(pages)
+        }
+    });
 
     Ok(())
 }

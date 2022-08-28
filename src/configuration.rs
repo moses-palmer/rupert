@@ -6,11 +6,16 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use toml;
 
+use crate::presentation;
+
 /// The application configuration file.
 #[derive(Deserialize, Serialize)]
 pub struct Configuration {
     /// Information about the source.
     pub source: Source,
+
+    /// The page break configuration.
+    pub page_break: Option<presentation::PageBreakCondition>,
 }
 
 /// Information about the source.
