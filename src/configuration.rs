@@ -7,6 +7,8 @@ use rupert_macros::{partial_derive, partial_struct, Partial};
 use serde::{Deserialize, Serialize};
 use toml;
 
+use crate::presentation;
+
 /// The environment variable used to find the configuration file.
 const CONFIGURATION_FILE_PATH_ENV: &str = "RUPERT_CONFIGURATION_FILE";
 
@@ -14,7 +16,11 @@ const CONFIGURATION_FILE_PATH_ENV: &str = "RUPERT_CONFIGURATION_FILE";
 #[derive(Deserialize, Serialize, Partial)]
 #[partial_derive(Deserialize, Serialize)]
 #[partial_struct(ConfigurationFragment)]
-pub struct Configuration {}
+pub struct Configuration {
+    /// The page break configuration.
+    #[default_value(presentation::PageBreakCondition::ThematicBreak)]
+    pub page_break: presentation::PageBreakCondition,
+}
 
 /// Loads the application configuration.
 ///

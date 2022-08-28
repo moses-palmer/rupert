@@ -7,19 +7,30 @@ mod presentation;
 
 fn run<P>(
     path: P,
-    _configuration: configuration::Configuration,
+    configuration: configuration::Configuration,
 ) -> Result<(), String>
 where
     P: AsRef<path::Path>,
 {
     let arena = comrak::Arena::new();
-    let _presentation = presentation::load(&arena, &path).map_err(|e| {
+    let presentation = presentation::load(&arena, &path).map_err(|e| {
         format!(
             "Failed to load markdown document {}: {}",
             path.as_ref().to_string_lossy(),
             e
         )
     })?;
+
+    let _pages = Ok(presentation
+        .pages(configuration.page_break.clone())
+        .collect::<Vec<_>>())
+    .and_then(|pages| {
+        if pages.len() < 1 {
+            Err(format!("Invalid presentation: no pages"))
+        } else {
+            Ok(pages)
+        }
+    });
 
     Ok(())
 }
