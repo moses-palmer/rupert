@@ -351,6 +351,10 @@ fn inline<'a>(
             inlines(source, target, style.add_modifier(Modifier::BOLD));
         }
 
+        Strikethrough => {
+            inlines(source, target, style.add_modifier(Modifier::CROSSED_OUT));
+        }
+
         Text(text) => {
             target.push(Span::styled(
                 String::from_utf8_lossy(text).into_owned(),
@@ -362,14 +366,6 @@ fn inline<'a>(
         FootnoteReference(_) => {
             unimplemented!(
                 "Footnote references are not supported, but found on line {}",
-                source.data.borrow().start_line,
-            )
-        }
-
-        // TODO: Enable strikethrough and handle it
-        Strikethrough => {
-            unimplemented!(
-                "Strikethrough is not supported, but found on line {}",
                 source.data.borrow().start_line,
             )
         }

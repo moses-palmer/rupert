@@ -30,7 +30,13 @@ where
         root: comrak::parse_document(
             arena,
             &data,
-            &comrak::ComrakOptions::default(),
+            &comrak::ComrakOptions {
+                extension: comrak::ComrakExtensionOptions {
+                    strikethrough: true,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
         ),
     })
 }
