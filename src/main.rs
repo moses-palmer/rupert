@@ -4,6 +4,7 @@ use std::process;
 
 mod configuration;
 mod presentation;
+mod transform;
 
 fn run<P>(
     root: P,
