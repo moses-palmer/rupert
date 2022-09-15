@@ -3,6 +3,7 @@ use std::path;
 use std::process;
 
 mod configuration;
+mod parse;
 mod presentation;
 
 fn run<P>(
