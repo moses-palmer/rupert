@@ -5,6 +5,7 @@ use std::process;
 mod configuration;
 mod presentation;
 mod transform;
+mod widget;
 
 fn run<P>(
     root: P,
