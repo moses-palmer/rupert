@@ -5,6 +5,7 @@ use std::process;
 mod configuration;
 mod parse;
 mod presentation;
+mod widget;
 
 fn run<P>(
     root: P,
