@@ -9,4 +9,5 @@ edition = "2021"
 comrak = "0.15"
 serde = { version = "1", features = ["derive"] }
 toml = "0.5"
+tui = "0.19"
 rupert-macros = { path = "crates/rupert-macros" }
