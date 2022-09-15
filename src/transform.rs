@@ -168,7 +168,13 @@ fn section<'a>(
     match node {
         NodeValue::BlockQuote => {
             let mut content = Vec::new();
-            sections(source, &mut content, style.add_modifier(Modifier::DIM));
+            sections(
+                source,
+                &mut content,
+                style
+                    .add_modifier(Modifier::DIM)
+                    .add_modifier(Modifier::ITALIC),
+            );
             let content = content.into();
             target.push(Section::BlockQuote { content });
         }
