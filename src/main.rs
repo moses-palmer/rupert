@@ -7,6 +7,8 @@ mod presentation;
 mod transform;
 mod widget;
 
+mod ui;
+
 fn run<P>(
     root: P,
     configuration: configuration::Configuration,
@@ -26,7 +28,7 @@ where
         )
     })?;
 
-    let _pages = Ok(presentation
+    let pages = Ok(presentation
         .pages(configuration.page_break.clone().unwrap_or_default())
         .collect::<Vec<_>>())
     .and_then(|pages| {
@@ -35,9 +37,11 @@ where
         } else {
             Ok(pages)
         }
-    });
+    })?;
 
-    Ok(())
+    let widgets = pages.iter().map(widget::PageWidget::from).collect();
+
+    ui::run(&configuration, widgets)
 }
 
 /// Initialises the application and returns the root directory and

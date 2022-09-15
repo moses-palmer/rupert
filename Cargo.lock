@@ -546,6 +546,7 @@ name = "rupert"
 version = "0.1.0"
 dependencies = [
  "comrak",
+ "crossterm",
  "serde",
  "toml",
  "tui",

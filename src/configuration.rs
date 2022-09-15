@@ -11,6 +11,9 @@ use crate::presentation;
 /// The application configuration file.
 #[derive(Deserialize, Serialize)]
 pub struct Configuration {
+    /// The title of the presentation.
+    pub title: String,
+
     /// Information about the source.
     pub source: Source,
 
