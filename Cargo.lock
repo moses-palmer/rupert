@@ -653,6 +653,7 @@ name = "rupert"
 version = "0.1.0"
 dependencies = [
  "comrak",
+ "crossterm",
  "rupert-macros",
  "serde",
  "toml",
