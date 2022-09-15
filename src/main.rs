@@ -5,6 +5,7 @@ use std::process;
 mod configuration;
 mod parse;
 mod presentation;
+mod ui;
 mod widget;
 
 fn run<P>(
@@ -26,7 +27,7 @@ where
         )
     })?;
 
-    let _pages = Ok(presentation
+    let pages = Ok(presentation
         .pages(configuration.page_break.clone().unwrap_or_default())
         .collect::<Vec<_>>())
     .and_then(|pages| {
@@ -35,9 +36,11 @@ where
         } else {
             Ok(pages)
         }
-    });
+    })?;
 
-    Ok(())
+    let widgets = pages.iter().map(widget::PageWidget::from).collect();
+
+    ui::run(&configuration, widgets)
 }
 
 /// Initialises the application and returns the root directory and

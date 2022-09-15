@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 comrak = "0.12"
+crossterm = "0.25"
 serde = { version = "1", features = ["derive"]}
 toml = "0.5"
 tui = "0.19"
