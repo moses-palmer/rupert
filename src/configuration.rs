@@ -17,8 +17,12 @@ const CONFIGURATION_FILE_PATH_ENV: &str = "RUPERT_CONFIGURATION_FILE";
 #[partial_derive(Clone, Deserialize, Serialize)]
 #[partial_struct(ConfigurationFragment)]
 pub struct Configuration {
+    /// The title of the presentation.
+    #[partial_default("Presentation".into())]
+    pub title: String,
+
     /// The page break configuration.
-    #[default_value(presentation::PageBreakCondition::ThematicBreak)]
+    #[partial_default(presentation::PageBreakCondition::ThematicBreak)]
     pub page_break: presentation::PageBreakCondition,
 }
 
