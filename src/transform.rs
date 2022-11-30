@@ -20,6 +20,19 @@ pub struct Sections<'a> {
 }
 
 impl<'a> Sections<'a> {
+    /// Constructs sections from a page.
+    ///
+    /// # Arguments
+    /// *  `context` - The context used during transform.
+    /// *  `page` - The source page.
+    pub fn from_page(context: &mut Context, page: &'a Page<'a>) -> Self {
+        let mut sections = Vec::new();
+        for source in page.nodes() {
+            section(context, source, &mut sections, Style::default());
+        }
+        sections.into()
+    }
+
     /// Reorders all ordered list items in a list of sections.
     ///
     /// # Arguments
@@ -56,18 +69,6 @@ impl<'a> From<Vec<Section<'a>>> for Sections<'a> {
                 sections: source,
                 inner_margin: 1,
             }
-        }
-    }
-}
-
-impl<'a> From<&'a Page<'a>> for Sections<'a> {
-    fn from(source: &'a Page<'a>) -> Self {
-        {
-            let mut sections = Vec::new();
-            for source in source.nodes() {
-                section(source, &mut sections, Style::default());
-            }
-            sections.into()
         }
     }
 }
@@ -138,28 +139,42 @@ impl<'a> Section<'a> {
     pub const INDENT: u16 = 4;
 }
 
+/// The context used during transform.
+pub struct Context {}
+
+impl Context {
+    /// Constructs an empty context.
+    pub fn empty() -> Self {
+        Context {}
+    }
+}
+
 /// Converts a collection of markdown AST nodes to sections.
 ///
 /// # Arguments
+/// *  `context` - The context used during transform.
 /// *  `nodes` - The nodes to style.
 /// *  `style` - The current style.
 fn sections<'a>(
+    context: &mut Context,
     source: &'a Node<'a, RefCell<Ast>>,
     target: &mut Vec<Section<'a>>,
     style: Style,
 ) {
     for source in source.children() {
-        section(source, target, style);
+        section(context, source, target, style);
     }
 }
 
 /// Handles a single block element.
 ///
 /// # Arguments
+/// *  `context` - The context used during transform.
 /// *  `source` - The element to handle.
 /// *  `target` - A target `Vec` for generated spans.
 /// *  `style` - The current style.
 fn section<'a>(
+    context: &mut Context,
     source: &'a Node<'a, RefCell<Ast>>,
     target: &mut Vec<Section<'a>>,
     style: Style,
@@ -169,6 +184,7 @@ fn section<'a>(
         NodeValue::BlockQuote => {
             let mut content = Vec::new();
             sections(
+                context,
                 source,
                 &mut content,
                 style
@@ -195,6 +211,7 @@ fn section<'a>(
 
         NodeValue::Heading(heading) => {
             let text = Spans::from(root_inlines(
+                context,
                 source.children(),
                 style.add_modifier(Modifier::UNDERLINED),
             ))
@@ -205,7 +222,7 @@ fn section<'a>(
 
         NodeValue::Item(item) => {
             let mut content = Vec::new();
-            sections(source, &mut content, style);
+            sections(context, source, &mut content, style);
             let content = Sections::from(content);
             target.push(match item.list_type {
                 ListType::Ordered => Section::ListItemOrdered {
@@ -225,7 +242,7 @@ fn section<'a>(
 
         NodeValue::List(list) => {
             let mut content = Vec::new();
-            sections(source, &mut content, style);
+            sections(context, source, &mut content, style);
             let mut content = Sections::from(content);
             content.inner_margin = 0;
             content.list_item_reorder(list.start);
@@ -234,7 +251,8 @@ fn section<'a>(
 
         NodeValue::Paragraph => {
             let text =
-                Spans::from(root_inlines(source.children(), style)).into();
+                Spans::from(root_inlines(context, source.children(), style))
+                    .into();
             target.push(Section::Paragraph { text });
         }
 
@@ -288,14 +306,16 @@ fn section<'a>(
 /// Handles all children of a node as inline elements.
 ///
 /// # Arguments
+/// *  `context` - The context used during transform.
 /// *  `source` - The element to handle.
 /// *  `style` - The current style.
 fn root_inlines<'a>(
+    context: &mut Context,
     nodes: impl Iterator<Item = &'a Node<'a, RefCell<Ast>>>,
     style: Style,
 ) -> Vec<Span<'a>> {
     nodes.fold(Vec::new(), |mut target, source| {
-        inline(source, &mut target, style);
+        inline(context, source, &mut target, style);
         target
     })
 }
@@ -303,26 +323,30 @@ fn root_inlines<'a>(
 /// Handles all children of a node as inline elements.
 ///
 /// # Arguments
+/// *  `context` - The context used during transform.
 /// *  `source` - The element to handle.
 /// *  `target` - A target `Vec` for generated spans.
 /// *  `style` - The current style.
 fn inlines<'a>(
+    context: &mut Context,
     source: &'a Node<'a, RefCell<Ast>>,
     target: &mut Vec<Span<'a>>,
     style: Style,
 ) {
     for source in source.children() {
-        inline(source, target, style)
+        inline(context, source, target, style)
     }
 }
 
 /// Handles a single inline element.
 ///
 /// # Arguments
+/// *  `context` - The context used during transform.
 /// *  `source` - The element to handle.
 /// *  `target` - A target `Vec` for generated spans.
 /// *  `style` - The current style.
 fn inline<'a>(
+    context: &mut Context,
     source: &'a Node<'a, RefCell<Ast>>,
     target: &mut Vec<Span<'a>>,
     style: Style,
@@ -335,7 +359,12 @@ fn inline<'a>(
         )),
 
         Emph => {
-            inlines(source, target, style.add_modifier(Modifier::ITALIC));
+            inlines(
+                context,
+                source,
+                target,
+                style.add_modifier(Modifier::ITALIC),
+            );
         }
 
         LineBreak => {
@@ -344,6 +373,7 @@ fn inline<'a>(
 
         Link(link) => {
             inlines(
+                context,
                 source,
                 target,
                 style.add_modifier(Modifier::UNDERLINED).fg(Color::Blue),
@@ -357,7 +387,12 @@ fn inline<'a>(
         SoftBreak => target.push(Span::raw(" ")),
 
         Strong => {
-            inlines(source, target, style.add_modifier(Modifier::BOLD));
+            inlines(
+                context,
+                source,
+                target,
+                style.add_modifier(Modifier::BOLD),
+            );
         }
 
         Text(text) => {
