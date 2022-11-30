@@ -7,7 +7,7 @@ use tui::text::{Span, Spans, Text};
 use tui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 
 use crate::presentation::Page;
-use crate::transform::{Section, Sections};
+use crate::transform::{Context, Section, Sections};
 
 /// A widget representing a page.
 pub struct PageWidget<'a> {
@@ -21,10 +21,15 @@ impl<'a> Widget for &'a PageWidget<'a> {
     }
 }
 
-impl<'a> From<&'a Page<'a>> for PageWidget<'a> {
-    fn from(source: &'a Page<'a>) -> Self {
+impl<'a> PageWidget<'a> {
+    /// Constructs a page widget from a page.
+    ///
+    /// # Arguments
+    /// *  `context` - The context used during transform.
+    /// *  `page` - The source page.
+    pub fn from_page(context: &mut Context, page: &'a Page<'a>) -> Self {
         Self {
-            sections: source.into(),
+            sections: Sections::from_page(context, page),
         }
     }
 }

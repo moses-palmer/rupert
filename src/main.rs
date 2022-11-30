@@ -52,7 +52,11 @@ where
         }
     })?;
 
-    let widgets = pages.iter().map(widget::PageWidget::from).collect();
+    let mut context = transform::Context::empty();
+    let widgets = pages
+        .iter()
+        .map(|page| widget::PageWidget::from_page(&mut context, page))
+        .collect();
 
     ui::run(&configuration, widgets)
 }
