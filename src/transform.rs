@@ -510,19 +510,20 @@ fn inline<'a>(
             );
         }
 
+        Strikethrough => {
+            inlines(
+                context,
+                source,
+                target,
+                style.add_modifier(Modifier::CROSSED_OUT),
+            );
+        }
+
         Text(text) => {
             target.push(Span::styled(
                 String::from_utf8_lossy(text).into_owned(),
                 style,
             ));
-        }
-
-        // TODO: Enable strikethrough and handle it
-        Strikethrough => {
-            unimplemented!(
-                "Strikethrough is not supported, but found on line {}",
-                source.data.borrow().start_line,
-            )
         }
 
         // TODO: Enable superscript and handle it
