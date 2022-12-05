@@ -6,30 +6,166 @@ use tui::style::{Color, Style};
 use tui::text::{Span, Spans, Text};
 use tui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
 
+use crate::configuration::Configuration;
 use crate::presentation::Page;
-use crate::transform::{Context, Section, Sections};
+use crate::transform::{Context, Footnotes, Section, Sections};
 
 /// A widget representing a page.
 pub struct PageWidget<'a> {
     /// The sections of the page.
     sections: Sections<'a>,
+
+    /// All footnotes referenced on this page.
+    footnotes: FootnoteListing<'a>,
 }
+
+/// A widget representing pages being constructed.
+pub struct PageCollector<'a> {
+    // The context used during transform.
+    context: Context<'a>,
+
+    /// The sections of the pages.
+    sections: Vec<Sections<'a>>,
+
+    /// A listing of footnotes for each page.
+    footnotes: Vec<FootnoteIndices>,
+}
+
+/// The indices of the footnotes referenced on a page.
+struct FootnoteIndices(Vec<usize>);
+
+/// A description of the footnotes for a page.
+struct FootnoteListing<'a>(Vec<(String, Sections<'a>)>);
 
 impl<'a> Widget for &'a PageWidget<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         self.sections.render(area, buf);
+
+        let content_height = self.sections.height(area.width);
+        if area.height > content_height {
+            self.footnotes.render(
+                Rect::new(
+                    area.x,
+                    area.y + content_height,
+                    area.width,
+                    area.height - content_height,
+                ),
+                buf,
+            );
+        }
     }
 }
 
-impl<'a> PageWidget<'a> {
-    /// Constructs a page widget from a page.
+impl<'a> PageCollector<'a> {
+    /// Collects a `Vec` of pages to a page collection.
     ///
     /// # Arguments
     /// *  `context` - The context used during transform.
-    /// *  `page` - The source page.
-    pub fn from_page(context: &mut Context, page: &'a Page<'a>) -> Self {
+    /// *  `iter` - The pages to collect.
+    pub fn collect(
+        configuration: &'a Configuration,
+        iter: &'a Vec<Page<'a>>,
+    ) -> Self {
+        let mut context = Context::from(configuration);
+        let (sections, footnotes) = iter.into_iter().fold(
+            (Vec::new(), Vec::new()),
+            |(mut sections, mut footnotes), page| {
+                sections.push(Sections::from_page(&mut context, &page));
+                footnotes.push(context.footnotes.extract_references());
+                (sections, footnotes)
+            },
+        );
         Self {
-            sections: Sections::from_page(context, page),
+            context,
+            sections: sections.into(),
+            footnotes: footnotes.into_iter().map(FootnoteIndices).collect(),
+        }
+    }
+
+    /// Clones the context used during collection.
+    pub fn clone_context(&self) -> Context<'a> {
+        self.context.clone()
+    }
+
+    /// Finishes page collection.
+    pub fn finish(self) -> Vec<PageWidget<'a>> {
+        let Self {
+            context,
+            sections,
+            footnotes,
+        } = self;
+        sections
+            .into_iter()
+            .zip(footnotes.into_iter())
+            .map(|(sections, footnotes)| PageWidget {
+                sections,
+                footnotes: FootnoteListing(
+                    footnotes
+                        .into_iter()
+                        .filter_map(|index| {
+                            context.footnotes.lookup(index).map(|sections| {
+                                (
+                                    Footnotes::index_to_superscript(index),
+                                    sections.clone(),
+                                )
+                            })
+                        })
+                        .collect(),
+                ),
+            })
+            .collect()
+    }
+}
+
+impl FootnoteIndices {
+    pub fn into_iter(self) -> impl Iterator<Item = usize> {
+        self.0.into_iter()
+    }
+}
+
+impl<'a> Widget for &'a FootnoteListing<'a> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let margin = self
+            .0
+            .iter()
+            .map(|(index, _)| index.chars().count() as u16 + 1)
+            .max()
+            .unwrap_or(0u16);
+        let actual_height = self
+            .0
+            .iter()
+            .map(|(_, section)| section.height(area.width - margin))
+            .sum::<u16>();
+        if actual_height <= area.height {
+            self.0.iter().fold(
+                Rect::new(
+                    area.x,
+                    area.y + area.height - actual_height,
+                    area.width,
+                    actual_height,
+                ),
+                |mut rect, (index, sections)| {
+                    let height = sections.height(rect.width - margin);
+                    let layout = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .margin(0)
+                        .constraints(
+                            [
+                                Constraint::Length(margin),
+                                Constraint::Max(area.width),
+                            ]
+                            .as_ref(),
+                        )
+                        .split(rect);
+                    Paragraph::new(Text::from(index.clone()))
+                        .render(layout[0], buf);
+                    sections.render(layout[1], buf);
+
+                    rect.y += height;
+                    rect.height -= height;
+                    rect
+                },
+            );
         }
     }
 }
