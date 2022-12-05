@@ -5,6 +5,13 @@ use std::ops::Deref;
 use comrak::arena_tree::Node;
 use comrak::nodes::{Ast, ListDelimType, ListType, NodeValue};
 
+use syntect::easy::HighlightLines;
+use syntect::highlighting::{
+    Color as SyntectColor, FontStyle, Theme, ThemeSet,
+};
+use syntect::parsing::SyntaxSet;
+use syntect::util::LinesWithEndings;
+
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans, Text};
 
@@ -145,6 +152,12 @@ impl<'a> Section<'a> {
 pub struct Context<'a> {
     /// The footnotes on the current page.
     pub footnotes: Footnotes<'a>,
+
+    /// The known language syntaxes.
+    pub syntax_set: SyntaxSet,
+
+    /// The known language syntax highlighting themes.
+    pub theme: Theme,
 }
 
 impl<'a> Context<'a> {
@@ -152,6 +165,11 @@ impl<'a> Context<'a> {
     pub fn empty() -> Self {
         Context {
             footnotes: Default::default(),
+            syntax_set: SyntaxSet::load_defaults_newlines(),
+            theme: ThemeSet::load_defaults()
+                .themes
+                .remove("base16-ocean.dark")
+                .expect("failed to load theme"),
         }
     }
 }
@@ -252,6 +270,14 @@ impl<'a> Default for Footnotes<'a> {
     }
 }
 
+/// Converts a _syntect_ colour to a _tui_ colour.
+///
+/// # Arguments
+/// *  `color` - The colour to convert.
+pub fn color(color: &SyntectColor) -> Color {
+    Color::Rgb(color.r, color.g, color.b)
+}
+
 /// Converts a collection of markdown AST nodes to sections.
 ///
 /// # Arguments
@@ -299,13 +325,50 @@ fn section<'a>(
         }
 
         NodeValue::CodeBlock(code) => {
-            // TODO: Apply highlight based on code.info
-            let text = Text {
-                lines: String::from_utf8_lossy(&code.literal)
-                    .into_owned()
-                    .split('\n')
-                    .map(|s| s.to_string().into())
-                    .collect::<Vec<_>>(),
+            let syntax = context
+                .syntax_set
+                .find_syntax_by_token(&String::from_utf8_lossy(&code.info))
+                .unwrap_or_else(|| context.syntax_set.find_syntax_plain_text());
+            let text = String::from_utf8_lossy(&code.literal).into_owned();
+            let mut h = HighlightLines::new(syntax, &context.theme);
+            let lines = LinesWithEndings::from(&text)
+                .map(|line| {
+                    h.highlight_line(line, &context.syntax_set).map(|line| {
+                        Spans(
+                            line.iter()
+                                .map(|(style, text)| {
+                                    let s = Style::default()
+                                        .fg(color(&style.foreground))
+                                        .bg(color(&style.background));
+                                    if style
+                                        .font_style
+                                        .contains(FontStyle::BOLD)
+                                    {
+                                        s.add_modifier(Modifier::BOLD);
+                                    }
+                                    if style
+                                        .font_style
+                                        .contains(FontStyle::ITALIC)
+                                    {
+                                        s.add_modifier(Modifier::ITALIC);
+                                    }
+                                    if style
+                                        .font_style
+                                        .contains(FontStyle::UNDERLINE)
+                                    {
+                                        s.add_modifier(Modifier::UNDERLINED);
+                                    }
+
+                                    Span::styled(text.to_string() + "\n", s)
+                                })
+                                .collect(),
+                        )
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>();
+            let text = match lines {
+                Ok(lines) => Text { lines },
+                Err(_) => Text::raw(text),
             };
             target.push(Section::Code { text });
         }

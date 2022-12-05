@@ -656,6 +656,7 @@ dependencies = [
  "crossterm",
  "rupert-macros",
  "serde",
+ "syntect",
  "toml",
  "tui",
 ]
