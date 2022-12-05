@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::ops::Deref;
 
 use comrak::arena_tree::Node;
@@ -25,7 +26,7 @@ impl<'a> Sections<'a> {
     /// # Arguments
     /// *  `context` - The context used during transform.
     /// *  `page` - The source page.
-    pub fn from_page(context: &mut Context, page: &'a Page<'a>) -> Self {
+    pub fn from_page(context: &mut Context<'a>, page: &'a Page<'a>) -> Self {
         let mut sections = Vec::new();
         for source in page.nodes() {
             section(context, source, &mut sections, Style::default());
@@ -140,12 +141,113 @@ impl<'a> Section<'a> {
 }
 
 /// The context used during transform.
-pub struct Context {}
+pub struct Context<'a> {
+    /// The footnotes on the current page.
+    pub footnotes: Footnotes<'a>,
+}
 
-impl Context {
+impl<'a> Context<'a> {
     /// Constructs an empty context.
     pub fn empty() -> Self {
-        Context {}
+        Context {
+            footnotes: Default::default(),
+        }
+    }
+}
+
+/// A list of footnotes.
+#[derive(Clone, Debug)]
+pub struct Footnotes<'a> {
+    /// A set of references for the current page.
+    references: HashSet<String>,
+
+    /// The actual data.
+    data: Vec<(String, Option<Sections<'a>>)>,
+}
+
+impl<'a> Footnotes<'a> {
+    /// The characters used for numeric superscript.
+    const SUPERSCRIPTS: [char; 10] =
+        ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
+
+    /// Adds a footnote reference.
+    ///
+    /// The return value is its index.
+    ///
+    /// # Arguments
+    /// *  `name` - The footnote name.
+    pub fn reference(&mut self, name: &str) -> usize {
+        self.references.insert(name.into());
+        if let Some(index) = self.data.iter().position(|(n, _)| name == n) {
+            index
+        } else {
+            self.data.push((name.into(), None));
+            self.data.len() - 1
+        }
+    }
+
+    /// Declares a footnote
+    ///
+    /// The return value is its index.
+    ///
+    /// # Arguments
+    /// *  `name` - The footnote name.
+    /// *  `sections` - The footnote declaration.
+    pub fn definition(&mut self, name: &str, sections: Sections<'a>) -> usize {
+        if let Some(index) = self.data.iter().position(|(n, _)| name == n) {
+            self.data[index].1 = Some(sections);
+            index
+        } else {
+            self.data.push((name.into(), Some(sections)));
+            self.data.len() - 1
+        }
+    }
+
+    /// Locates a footnote by index and returns its declaration.
+    ///
+    /// # Arguments
+    /// *  `index` - The footnote index.
+    pub fn lookup(&self, index: usize) -> Option<&Sections<'a>> {
+        self.data
+            .get(index)
+            .and_then(|(_, section)| section.as_ref())
+    }
+
+    /// Extracts the currently seen references and clears the list.
+    pub fn extract_references(&mut self) -> Vec<usize> {
+        let mut indices = self
+            .references
+            .iter()
+            .filter_map(|name| self.data.iter().position(|(n, _)| name == n))
+            .collect::<Vec<_>>();
+        indices.sort();
+
+        self.references.clear();
+        indices
+    }
+
+    /// Converts an index to a superscript string.
+    ///
+    /// # Arguments
+    /// *  `index` - The index to convert.
+    pub fn index_to_superscript(index: usize) -> String {
+        let mut current = index + 1;
+        let mut result = Vec::new();
+        while current > 0 {
+            let i = current % 10;
+            current /= 10;
+            result.insert(0, Self::SUPERSCRIPTS[i]);
+        }
+        result.iter().collect()
+    }
+}
+
+impl<'a> Default for Footnotes<'a> {
+    fn default() -> Self {
+        Self {
+            references: HashSet::new(),
+            data: Vec::new(),
+        }
     }
 }
 
@@ -156,7 +258,7 @@ impl Context {
 /// *  `nodes` - The nodes to style.
 /// *  `style` - The current style.
 fn sections<'a>(
-    context: &mut Context,
+    context: &mut Context<'a>,
     source: &'a Node<'a, RefCell<Ast>>,
     target: &mut Vec<Section<'a>>,
     style: Style,
@@ -174,7 +276,7 @@ fn sections<'a>(
 /// *  `target` - A target `Vec` for generated spans.
 /// *  `style` - The current style.
 fn section<'a>(
-    context: &mut Context,
+    context: &mut Context<'a>,
     source: &'a Node<'a, RefCell<Ast>>,
     target: &mut Vec<Section<'a>>,
     style: Style,
@@ -208,6 +310,19 @@ fn section<'a>(
         }
 
         NodeValue::FrontMatter(_) => {}
+
+        NodeValue::FootnoteDefinition(footnote) => {
+            let name = String::from_utf8_lossy(footnote);
+            let mut content = Vec::new();
+            sections(
+                context,
+                source,
+                &mut content,
+                style.add_modifier(Modifier::DIM),
+            );
+            let content = content.into();
+            context.footnotes.definition(&name, content);
+        }
 
         NodeValue::Heading(heading) => {
             let text = Spans::from(root_inlines(
@@ -266,14 +381,6 @@ fn section<'a>(
         | NodeValue::DescriptionTerm => {
             unimplemented!(
                 "Description lists are not supported, but found on line {}",
-                source.data.borrow().start_line,
-            )
-        }
-
-        // TODO: Enable footnote references and handle them
-        NodeValue::FootnoteDefinition(_) => {
-            unimplemented!(
-                "Footnote definitions are not supported, but found on line {}",
                 source.data.borrow().start_line,
             )
         }
@@ -367,6 +474,14 @@ fn inline<'a>(
             );
         }
 
+        FootnoteReference(footnote) => {
+            let name = String::from_utf8_lossy(footnote);
+            let index = context.footnotes.reference(&name);
+            target.push(
+                format!("{}", Footnotes::index_to_superscript(index)).into(),
+            )
+        }
+
         LineBreak => {
             target.push(Span::raw("\n"));
         }
@@ -400,14 +515,6 @@ fn inline<'a>(
                 String::from_utf8_lossy(text).into_owned(),
                 style,
             ));
-        }
-
-        // TODO: Enable footnote references and handle them
-        FootnoteReference(_) => {
-            unimplemented!(
-                "Footnote references are not supported, but found on line {}",
-                source.data.borrow().start_line,
-            )
         }
 
         // TODO: Enable strikethrough and handle it
