@@ -53,9 +53,9 @@ where
     })?;
 
     let page_collector = widget::PageCollector::collect(&configuration, &pages);
-    let widgets = page_collector.finish();
+    let (context, widgets) = page_collector.finish();
 
-    ui::run(&configuration, widgets)
+    ui::run(&configuration, &context, widgets)
 }
 
 /// Initialises the application and returns the root directory and

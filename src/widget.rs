@@ -83,13 +83,13 @@ impl<'a> PageCollector<'a> {
     }
 
     /// Finishes page collection.
-    pub fn finish(self) -> Vec<PageWidget<'a>> {
+    pub fn finish(self) -> (Context<'a>, Vec<PageWidget<'a>>) {
         let Self {
             context,
             sections,
             footnotes,
         } = self;
-        sections
+        let widgets = sections
             .into_iter()
             .zip(footnotes.into_iter())
             .map(|(sections, footnotes)| PageWidget {
@@ -108,7 +108,8 @@ impl<'a> PageCollector<'a> {
                         .collect(),
                 ),
             })
-            .collect()
+            .collect();
+        (context, widgets)
     }
 }
 
