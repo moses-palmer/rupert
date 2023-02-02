@@ -14,7 +14,7 @@ const CONFIGURATION_FILE_PATH_ENV: &str = "RUPERT_CONFIGURATION_FILE";
 
 /// The application configuration file.
 #[derive(Deserialize, Serialize, Partial)]
-#[partial_derive(Deserialize, Serialize)]
+#[partial_derive(Clone, Deserialize, Serialize)]
 #[partial_struct(ConfigurationFragment)]
 pub struct Configuration {
     /// The page break configuration.
@@ -26,7 +26,7 @@ pub struct Configuration {
 ///
 /// If the environment variable `RUPERT_CONFIGURATION_FILE` is set, the
 /// configuration is loaded from that file, otherwise a default value is used.
-pub fn load() -> io::Result<Configuration> {
+pub fn load() -> io::Result<ConfigurationFragment> {
     Ok([env::var(CONFIGURATION_FILE_PATH_ENV).ok().map(load_from)]
         .into_iter()
         .filter_map(|i| i)
@@ -34,8 +34,7 @@ pub fn load() -> io::Result<Configuration> {
         .into_iter()
         .fold(ConfigurationFragment::default(), |acc, partial| {
             acc.merge(partial)
-        })
-        .into())
+        }))
 }
 
 /// Loads a configuration from a TOML file.

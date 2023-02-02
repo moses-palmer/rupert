@@ -7,6 +7,12 @@ use comrak::arena_tree::Node;
 use comrak::nodes::{Ast, NodeValue};
 use comrak::Arena;
 use serde::{Deserialize, Serialize};
+use toml;
+
+use crate::configuration::ConfigurationFragment;
+
+/// The delimiter used for the front matter.
+const FRONT_MATTER_DELIMITER: &str = "%%%";
 
 /// A presentation.
 pub struct Presentation<'a> {
@@ -30,12 +36,40 @@ where
         root: comrak::parse_document(
             arena,
             &data,
-            &comrak::ComrakOptions::default(),
+            &comrak::ComrakOptions {
+                extension: comrak::ComrakExtensionOptions {
+                    front_matter_delimiter: Some(FRONT_MATTER_DELIMITER.into()),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
         ),
     })
 }
 
 impl<'a> Presentation<'a> {
+    /// Attempts to load a configuration fragment from the presentation file.
+    ///
+    /// The configuration is specified as front matter, with `"%%%"` as
+    /// delimiter. Only
+    pub fn configuration(&self) -> Option<io::Result<ConfigurationFragment>> {
+        self.root
+            .children()
+            .find_map(|node| match &node.data.borrow().value {
+                NodeValue::FrontMatter(data) => String::from_utf8(data.clone())
+                    .ok()
+                    .filter(|s| s.len() > 2 * FRONT_MATTER_DELIMITER.len()),
+                _ => None,
+            })
+            .map(|s| {
+                toml::from_str(
+                    &s[FRONT_MATTER_DELIMITER.len()
+                        ..s.len() - FRONT_MATTER_DELIMITER.len() - 1],
+                )
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+            })
+    }
+
     /// The pages of this presentation.
     ///
     /// # Arguments
@@ -133,6 +167,11 @@ impl<'a> Iterator for PageIterator<'a> {
         let mut current = self.next?;
         let mut nodes = Vec::new();
         self.next = loop {
+            if let NodeValue::FrontMatter(_) = &current.data.borrow().value {
+                current = current.next_sibling()?;
+                continue;
+            }
+
             nodes.push(current);
             if let Some(next_sibling) = current.next_sibling() {
                 if let Some(next) =

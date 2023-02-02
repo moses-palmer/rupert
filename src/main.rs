@@ -7,7 +7,7 @@ mod presentation;
 
 fn run<P>(
     path: P,
-    configuration: configuration::Configuration,
+    configuration: configuration::ConfigurationFragment,
 ) -> Result<(), String>
 where
     P: AsRef<path::Path>,
@@ -20,6 +20,22 @@ where
             e
         )
     })?;
+
+    let configuration = configuration::Configuration::from(
+        presentation
+            .configuration()
+            .map(|c| {
+                Ok::<_, String>(configuration.clone().merge(c.map_err(
+                    |e| {
+                        format!(
+                        "Failed to read configuration from presentation: {}",
+                        e,
+                    )
+                    },
+                )?))
+            })
+            .unwrap_or_else(|| Ok(configuration))?,
+    );
 
     let _pages = Ok(presentation
         .pages(configuration.page_break.clone())
@@ -41,8 +57,8 @@ where
 /// # Panics
 /// This function will panic if the current executable name cannot be
 /// determined.
-fn initialize() -> Result<(path::PathBuf, configuration::Configuration), String>
-{
+fn initialize(
+) -> Result<(path::PathBuf, configuration::ConfigurationFragment), String> {
     let presentation = env::args().skip(1).next().ok_or_else(usage)?;
     let configuration = configuration::load()
         .map_err(|e| format!("Failed to load configuration: {}", e))?;
