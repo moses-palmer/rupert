@@ -138,6 +138,12 @@ pub enum Section<'a> {
         text: Text<'a>,
     },
 
+    /// A table.
+    Table {
+        /// The table cells, as the cells of a row wrapped in a list of rows.
+        rows: Vec<TableRow<'a>>,
+    },
+
     /// A thematic break
     ThematicBreak,
 }
@@ -266,6 +272,47 @@ impl<'a> Default for Footnotes<'a> {
             references: HashSet::new(),
             data: Vec::new(),
         }
+    }
+}
+
+/// A row in a table.
+#[derive(Clone, Debug)]
+pub struct TableRow<'a> {
+    /// Whether this row is the header row.
+    header: bool,
+
+    /// The cells.
+    cells: Vec<Text<'a>>,
+}
+
+impl<'a> TableRow<'a> {
+    /// Creates a new table row.
+    ///
+    /// # Arguments
+    /// *  `header` - Whether to create a header row.
+    pub fn new(header: bool) -> Self {
+        Self {
+            header,
+            cells: Vec::new(),
+        }
+    }
+
+    /// Whether this row is a header row.
+    pub fn header(&self) -> bool {
+        self.header
+    }
+
+    /// The cells of this row.
+    pub fn cells(&self) -> &[Text<'a>] {
+        &self.cells
+    }
+
+    /// Adds a new cell to this row.
+    ///
+    /// # Arguments
+    /// *  `cell` - The cell to add.
+    pub fn push(&mut self, cell: Text<'a>) {
+        self.cells.push(cell)
     }
 }
 
@@ -434,6 +481,36 @@ fn section<'a>(
             target.push(Section::Paragraph { text });
         }
 
+        NodeValue::Table(_) => {
+            target.push(Section::Table { rows: Vec::new() });
+            sections(context, source, target, style);
+        }
+
+        NodeValue::TableCell => {
+            if let Some(row) = target.last_mut().and_then(|s| {
+                if let Section::Table { rows, .. } = s {
+                    rows.last_mut()
+                } else {
+                    None
+                }
+            }) {
+                let text = Spans::from(root_inlines(
+                    context,
+                    source.children(),
+                    style,
+                ))
+                .into();
+                row.push(text);
+            }
+        }
+
+        NodeValue::TableRow(header) => {
+            if let Some(Section::Table { rows, .. }) = target.last_mut() {
+                rows.push(TableRow::new(*header));
+                sections(context, source, target, style);
+            }
+        }
+
         NodeValue::ThematicBreak => {
             target.push(Section::ThematicBreak);
         }
@@ -444,14 +521,6 @@ fn section<'a>(
         | NodeValue::DescriptionTerm => {
             unimplemented!(
                 "Description lists are not supported, but found on line {}",
-                source.data.borrow().start_line,
-            )
-        }
-
-        // TODO: Enable tables and handle them
-        NodeValue::TableCell | NodeValue::TableRow(_) | NodeValue::Table(_) => {
-            unimplemented!(
-                "Tables are not supported, but found on line {}",
                 source.data.borrow().start_line,
             )
         }

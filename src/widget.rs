@@ -2,13 +2,13 @@ use std::iter::repeat;
 
 use tui::buffer::Buffer;
 use tui::layout::{Constraint, Direction, Layout, Rect};
-use tui::style::{Color, Style};
+use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans, Text};
-use tui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
+use tui::widgets::{Block, Borders, Paragraph, Row, Table, Widget, Wrap};
 
 use crate::configuration::Configuration;
 use crate::presentation::Page;
-use crate::transform::{Context, Footnotes, Section, Sections};
+use crate::transform::{Context, Footnotes, Section, Sections, TableRow};
 
 /// A widget representing a page.
 pub struct PageWidget<'a> {
@@ -265,6 +265,7 @@ impl<'a> Section<'a> {
                 Self::height_list_item_unordered(width, content, bullet)
             }
             Paragraph { text } => Self::height_paragraph(width, text),
+            Table { rows } => Self::height_table(width, rows),
             ThematicBreak => Self::height_thematic_break(width),
         }
     }
@@ -333,6 +334,29 @@ impl<'a> Section<'a> {
                 .iter()
                 .map(|line| Self::height_line(width, 0, &line.0))
                 .sum::<u16>()
+        } else {
+            0
+        }
+    }
+
+    fn height_table(_width: u16, rows: &[TableRow<'a>]) -> u16 {
+        // The height is the sum of all row heights plus a separator line
+        // between every row and the block frame
+        if rows.len() > 0 {
+            let height_border = 2;
+            let height_header = rows
+                .iter()
+                .filter(|row| row.header())
+                .next()
+                .map(|_| 1)
+                .unwrap_or(0);
+            let height_rows = rows
+                .iter()
+                .filter(|row| !row.header())
+                .map(|_| 2)
+                .sum::<u16>()
+                - 1;
+            height_border + height_header + height_rows
         } else {
             0
         }
@@ -453,6 +477,7 @@ impl<'a> Section<'a> {
                 Self::render_list_item_unordered(area, buf, &content, bullet)
             }
             Paragraph { text } => Self::render_paragraph(area, buf, text),
+            Table { rows } => Self::render_table(area, buf, rows),
             ThematicBreak => Self::render_thematic_break(area, buf),
         }
     }
@@ -562,6 +587,33 @@ impl<'a> Section<'a> {
                 .wrap(Wrap { trim: true })
                 .render(area, buf);
         }
+    }
+
+    fn render_table(area: Rect, buf: &mut Buffer, rows: &[TableRow<'a>]) {
+        let columns = rows.first().map(|row| row.cells().len()).unwrap_or(1);
+        let widths = vec![Constraint::Ratio(1, columns as u32); columns];
+        let mut table = Table::new(
+            rows.iter()
+                .filter(|row| !row.header())
+                .map(|row| {
+                    Row::new(row.cells().iter().cloned())
+                        .bottom_margin(1)
+                        .height(1)
+                })
+                .collect::<Vec<Row>>(),
+        )
+        .block(Block::default().borders(Borders::ALL))
+        .column_spacing(1)
+        .widths(&widths);
+        if let Some(header_row) = rows.iter().filter(|row| row.header()).next()
+        {
+            table = table
+                .header(Row::new(header_row.cells().iter().cloned()).style(
+                    Style::default().add_modifier(Modifier::UNDERLINED),
+                ));
+        }
+
+        table.render(area, buf);
     }
 
     fn render_thematic_break(area: Rect, buf: &mut Buffer) {
