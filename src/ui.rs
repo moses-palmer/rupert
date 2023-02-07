@@ -64,6 +64,8 @@ where
                 KeyCode::Char('q') => break,
                 _ => continue,
             }
+
+            configuration.commands.update(&path, page + 1, pages.len());
         }
     }
 

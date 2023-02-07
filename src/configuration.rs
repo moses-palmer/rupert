@@ -36,6 +36,9 @@ pub struct Configuration {
 pub struct Commands {
     /// The command executed after the presentation has been loaded.
     pub initialize: Option<Command>,
+
+    /// The command executed on each update.
+    pub update: Option<Command>,
 }
 
 impl Commands {
@@ -48,6 +51,26 @@ impl Commands {
         P: AsRef<Path>,
     {
         self.dispatch(&path, &self.initialize, |_| None)
+    }
+
+    /// Calls the `update` command.
+    ///
+    /// # Arguments
+    /// *  `path` - The path to the presentation.
+    /// *  `page_current` - The current page.
+    /// *  `page_count` - The number of pages.
+    pub fn update<P>(&self, path: P, page_current: usize, page_count: usize)
+    where
+        P: AsRef<Path>,
+    {
+        let page_current = page_current.to_string();
+        let page_count = page_count.to_string();
+
+        self.dispatch(&path, &self.update, |key| match key {
+            "page.current" => Some(&page_current),
+            "page.count" => Some(&page_count),
+            _ => None,
+        })
     }
 
     /// Dispatches execution to an optional command.
