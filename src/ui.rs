@@ -1,4 +1,5 @@
 use std::io;
+use std::path::Path;
 
 use crossterm::event::{self, Event, KeyCode};
 use crossterm::execute;
@@ -20,16 +21,23 @@ use crate::widget::PageWidget;
 /// This function will not return until the user exits.
 ///
 /// # Arguments
+/// *  `path` - The path to the presentation to display.
 /// *  `configuration` - The application configuration.
 /// *  `context` - A presentation context.
 /// *  `pages` - The pages of the presentation.
-pub fn run(
+pub fn run<P>(
+    path: P,
     configuration: &Configuration,
     context: &Context,
     pages: Vec<PageWidget>,
-) -> Result<(), String> {
+) -> Result<(), String>
+where
+    P: AsRef<Path>,
+{
     let mut terminal = Terminal::new()?;
     let mut page = 0usize;
+
+    configuration.commands.initialize(&path);
 
     #[allow(unused_must_use)]
     loop {

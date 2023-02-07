@@ -33,9 +33,23 @@ pub struct Configuration {
 
 /// The various commands executed during presentation.
 #[derive(Clone, Default, Deserialize, Serialize)]
-pub struct Commands {}
+pub struct Commands {
+    /// The command executed after the presentation has been loaded.
+    pub initialize: Option<Command>,
+}
 
 impl Commands {
+    /// Calls the `initialize` command.
+    ///
+    /// # Arguments
+    /// *  `path` - The path to the presentation.
+    pub fn initialize<P>(&self, path: P)
+    where
+        P: AsRef<Path>,
+    {
+        self.dispatch(&path, &self.initialize, |_| None)
+    }
+
     /// Dispatches execution to an optional command.
     ///
     /// The result of the execution is discarded, but written to `stderr`.
