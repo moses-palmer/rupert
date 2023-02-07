@@ -55,7 +55,7 @@ where
     let page_collector = widget::PageCollector::collect(&configuration, &pages);
     let (context, widgets) = page_collector.finish();
 
-    ui::run(&configuration, &context, widgets)
+    ui::run(path, &configuration, &context, widgets)
 }
 
 /// Initialises the application and returns the root directory and
