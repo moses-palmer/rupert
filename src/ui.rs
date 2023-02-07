@@ -12,6 +12,7 @@ use tui::widgets::{Block, BorderType, Borders, Paragraph};
 use tui::Frame;
 
 use crate::configuration::Configuration;
+use crate::transform::{color, Context};
 use crate::widget::PageWidget;
 
 /// Runs the UI main loop.
@@ -20,9 +21,11 @@ use crate::widget::PageWidget;
 ///
 /// # Arguments
 /// *  `configuraiton` - The application configuration.
+/// *  `context` - A presentation context.
 /// *  `pages` - The pages of the presentation.
 pub fn run(
     configuration: &Configuration,
+    context: &Context,
     pages: Vec<PageWidget>,
 ) -> Result<(), String> {
     let mut terminal = Terminal::new()?;
@@ -32,7 +35,7 @@ pub fn run(
     loop {
         terminal
             .0
-            .draw(|frame| render(frame, configuration, &pages, page))
+            .draw(|frame| render(frame, configuration, context, &pages, page))
             .map(|_| ())
             .or_else(|_| terminal.0.clear())
             .map_err(|e| format!("Failed to render TUI: {}", e));
@@ -62,6 +65,7 @@ pub fn run(
 fn render(
     frame: &mut Frame<CrosstermBackend<io::Stdout>>,
     configuration: &Configuration,
+    context: &Context,
     widgets: &Vec<PageWidget<'_>>,
     page: usize,
 ) {
@@ -69,6 +73,15 @@ fn render(
 
     // The window containing the presentation and the rectangle for content
     let presentation_window = Block::default()
+        .style(
+            Style::default().bg(context
+                .theme
+                .settings
+                .background
+                .as_ref()
+                .map(color)
+                .unwrap_or_else(|| Color::Black)),
+        )
         .borders(Borders::ALL)
         .title(configuration.title.as_str())
         .title_alignment(Alignment::Center)
