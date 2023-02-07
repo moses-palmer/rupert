@@ -56,7 +56,7 @@ where
     let context = page_collector.clone_context();
     let widgets = page_collector.finish();
 
-    ui::run(&configuration, &context, widgets)
+    ui::run(path, &configuration, &context, widgets)
 }
 
 /// Initialises the application and returns the root directory and
