@@ -38,7 +38,10 @@ where
             &data,
             &comrak::ComrakOptions {
                 extension: comrak::ComrakExtensionOptions {
+                    footnotes: true,
                     front_matter_delimiter: Some(FRONT_MATTER_DELIMITER.into()),
+                    strikethrough: true,
+                    table: true,
                     ..Default::default()
                 },
                 ..Default::default()

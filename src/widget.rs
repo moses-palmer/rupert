@@ -2,29 +2,166 @@ use std::iter::repeat;
 
 use tui::buffer::Buffer;
 use tui::layout::{Constraint, Direction, Layout, Rect};
-use tui::style::{Color, Style};
+use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans, Text};
-use tui::widgets::{Block, Borders, Paragraph, Widget, Wrap};
+use tui::widgets::{Block, Borders, Paragraph, Row, Table, Widget, Wrap};
 
+use crate::configuration::Configuration;
 use crate::presentation::Page;
-use crate::transform::{Section, Sections};
+use crate::transform::{Context, Footnotes, Section, Sections, TableRow};
 
 /// A widget representing a page.
 pub struct PageWidget<'a> {
     /// The sections of the page.
     sections: Sections<'a>,
+
+    /// All footnotes referenced on this page.
+    footnotes: FootnoteListing<'a>,
 }
+
+/// A widget representing pages being constructed.
+pub struct PageCollector<'a> {
+    // The context used during transform.
+    context: Context<'a>,
+
+    /// The sections of the pages.
+    sections: Vec<Sections<'a>>,
+
+    /// A listing of footnotes for each page.
+    footnotes: Vec<FootnoteIndices>,
+}
+
+/// The indices of the footnotes referenced on a page.
+struct FootnoteIndices(Vec<usize>);
+
+/// A description of the footnotes for a page.
+struct FootnoteListing<'a>(Vec<(String, Sections<'a>)>);
 
 impl<'a> Widget for &'a PageWidget<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         self.sections.render(area, buf);
+
+        let content_height = self.sections.height(area.width);
+        if area.height > content_height {
+            self.footnotes.render(
+                Rect::new(
+                    area.x,
+                    area.y + content_height,
+                    area.width,
+                    area.height - content_height,
+                ),
+                buf,
+            );
+        }
     }
 }
 
-impl<'a> From<&'a Page<'a>> for PageWidget<'a> {
-    fn from(source: &'a Page<'a>) -> Self {
+impl<'a> PageCollector<'a> {
+    /// Collects a `Vec` of pages to a page collection.
+    ///
+    /// # Arguments
+    /// *  `_configuration` - The application configuration.
+    /// *  `iter` - The pages to collect.
+    pub fn collect(
+        _configuration: &'a Configuration,
+        iter: &'a Vec<Page<'a>>,
+    ) -> Self {
+        let mut context = Context::empty();
+        let (sections, footnotes) = iter.into_iter().fold(
+            (Vec::new(), Vec::new()),
+            |(mut sections, mut footnotes), page| {
+                sections.push(Sections::from_page(&mut context, &page));
+                footnotes.push(context.footnotes.extract_references());
+                (sections, footnotes)
+            },
+        );
         Self {
-            sections: source.into(),
+            context,
+            sections: sections.into(),
+            footnotes: footnotes.into_iter().map(FootnoteIndices).collect(),
+        }
+    }
+
+    /// Finishes page collection.
+    pub fn finish(self) -> (Context<'a>, Vec<PageWidget<'a>>) {
+        let Self {
+            context,
+            sections,
+            footnotes,
+        } = self;
+        let widgets = sections
+            .into_iter()
+            .zip(footnotes.into_iter())
+            .map(|(sections, footnotes)| PageWidget {
+                sections,
+                footnotes: FootnoteListing(
+                    footnotes
+                        .into_iter()
+                        .filter_map(|index| {
+                            context.footnotes.lookup(index).map(|sections| {
+                                (
+                                    Footnotes::index_to_superscript(index),
+                                    sections.clone(),
+                                )
+                            })
+                        })
+                        .collect(),
+                ),
+            })
+            .collect();
+        (context, widgets)
+    }
+}
+
+impl FootnoteIndices {
+    pub fn into_iter(self) -> impl Iterator<Item = usize> {
+        self.0.into_iter()
+    }
+}
+
+impl<'a> Widget for &'a FootnoteListing<'a> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let margin = self
+            .0
+            .iter()
+            .map(|(index, _)| index.chars().count() as u16 + 1)
+            .max()
+            .unwrap_or(0u16);
+        let actual_height = self
+            .0
+            .iter()
+            .map(|(_, section)| section.height(area.width - margin))
+            .sum::<u16>();
+        if actual_height <= area.height {
+            self.0.iter().fold(
+                Rect::new(
+                    area.x,
+                    area.y + area.height - actual_height,
+                    area.width,
+                    actual_height,
+                ),
+                |mut rect, (index, sections)| {
+                    let height = sections.height(rect.width - margin);
+                    let layout = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .margin(0)
+                        .constraints(
+                            [
+                                Constraint::Length(margin),
+                                Constraint::Max(area.width),
+                            ]
+                            .as_ref(),
+                        )
+                        .split(rect);
+                    Paragraph::new(Text::from(index.clone()))
+                        .render(layout[0], buf);
+                    sections.render(layout[1], buf);
+
+                    rect.y += height;
+                    rect.height -= height;
+                    rect
+                },
+            );
         }
     }
 }
@@ -128,6 +265,7 @@ impl<'a> Section<'a> {
                 Self::height_list_item_unordered(width, content, bullet)
             }
             Paragraph { text } => Self::height_paragraph(width, text),
+            Table { rows } => Self::height_table(width, rows),
             ThematicBreak => Self::height_thematic_break(width),
         }
     }
@@ -196,6 +334,29 @@ impl<'a> Section<'a> {
                 .iter()
                 .map(|line| Self::height_line(width, 0, &line.0))
                 .sum::<u16>()
+        } else {
+            0
+        }
+    }
+
+    fn height_table(_width: u16, rows: &[TableRow<'a>]) -> u16 {
+        // The height is the sum of all row heights plus a separator line
+        // between every row and the block frame
+        if rows.len() > 0 {
+            let height_border = 2;
+            let height_header = rows
+                .iter()
+                .filter(|row| row.header())
+                .next()
+                .map(|_| 1)
+                .unwrap_or(0);
+            let height_rows = rows
+                .iter()
+                .filter(|row| !row.header())
+                .map(|_| 2)
+                .sum::<u16>()
+                - 1;
+            height_border + height_header + height_rows
         } else {
             0
         }
@@ -316,6 +477,7 @@ impl<'a> Section<'a> {
                 Self::render_list_item_unordered(area, buf, &content, bullet)
             }
             Paragraph { text } => Self::render_paragraph(area, buf, text),
+            Table { rows } => Self::render_table(area, buf, rows),
             ThematicBreak => Self::render_thematic_break(area, buf),
         }
     }
@@ -425,6 +587,33 @@ impl<'a> Section<'a> {
                 .wrap(Wrap { trim: true })
                 .render(area, buf);
         }
+    }
+
+    fn render_table(area: Rect, buf: &mut Buffer, rows: &[TableRow<'a>]) {
+        let columns = rows.first().map(|row| row.cells().len()).unwrap_or(1);
+        let widths = vec![Constraint::Ratio(1, columns as u32); columns];
+        let mut table = Table::new(
+            rows.iter()
+                .filter(|row| !row.header())
+                .map(|row| {
+                    Row::new(row.cells().iter().cloned())
+                        .bottom_margin(1)
+                        .height(1)
+                })
+                .collect::<Vec<Row>>(),
+        )
+        .block(Block::default().borders(Borders::ALL))
+        .column_spacing(1)
+        .widths(&widths);
+        if let Some(header_row) = rows.iter().filter(|row| row.header()).next()
+        {
+            table = table
+                .header(Row::new(header_row.cells().iter().cloned()).style(
+                    Style::default().add_modifier(Modifier::UNDERLINED),
+                ));
+        }
+
+        table.render(area, buf);
     }
 
     fn render_thematic_break(area: Rect, buf: &mut Buffer) {
