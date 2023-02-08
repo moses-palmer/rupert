@@ -69,6 +69,8 @@ where
         }
     }
 
+    configuration.commands.finalize(&path);
+
     Ok(())
 }
 

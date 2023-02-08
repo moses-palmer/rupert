@@ -39,6 +39,9 @@ pub struct Commands {
 
     /// The command executed on each update.
     pub update: Option<Command>,
+
+    /// The command executed when the presentation is closed.
+    pub finalize: Option<Command>,
 }
 
 impl Commands {
@@ -71,6 +74,17 @@ impl Commands {
             "page.count" => Some(&page_count),
             _ => None,
         })
+    }
+
+    /// Calls the `initialize` command.
+    ///
+    /// # Arguments
+    /// *  `path` - The path to the presentation.
+    pub fn finalize<P>(&self, path: P)
+    where
+        P: AsRef<Path>,
+    {
+        self.dispatch(&path, &self.finalize, |_| None)
     }
 
     /// Dispatches execution to an optional command.
