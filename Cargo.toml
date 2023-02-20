@@ -11,5 +11,5 @@ crossterm = "0.25"
 serde = { version = "1", features = ["derive"] }
 syntect = "5.0"
 toml = "0.5"
-tui = "0.19"
+tui = { version = "0.19", features = [ "serde" ] }
 rupert-macros = { path = "crates/rupert-macros" }
