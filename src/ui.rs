@@ -12,7 +12,6 @@ use tui::text::Text;
 use tui::widgets::{Block, BorderType, Borders, Paragraph};
 use tui::Frame;
 
-use crate::configuration::Configuration;
 use crate::transform::{color, Context};
 use crate::widget::PageWidget;
 
@@ -27,8 +26,7 @@ use crate::widget::PageWidget;
 /// *  `pages` - The pages of the presentation.
 pub fn run<P>(
     path: P,
-    configuration: &Configuration,
-    context: &Context,
+    context: Context,
     pages: Vec<PageWidget>,
 ) -> Result<(), String>
 where
@@ -37,13 +35,13 @@ where
     let mut terminal = Terminal::new()?;
     let mut page = 0usize;
 
-    configuration.commands.initialize(&path);
+    context.configuration.commands.initialize(&path);
 
     #[allow(unused_must_use)]
     loop {
         terminal
             .0
-            .draw(|frame| render(frame, configuration, context, &pages, page))
+            .draw(|frame| render(frame, &context, &pages, page))
             .map(|_| ())
             .or_else(|_| terminal.0.clear())
             .map_err(|e| format!("Failed to render TUI: {}", e));
@@ -65,18 +63,20 @@ where
                 _ => continue,
             }
 
-            configuration.commands.update(&path, page + 1, pages.len());
+            context
+                .configuration
+                .commands
+                .update(&path, page + 1, pages.len());
         }
     }
 
-    configuration.commands.finalize(&path);
+    context.configuration.commands.finalize(&path);
 
     Ok(())
 }
 
 fn render(
     frame: &mut Frame<CrosstermBackend<io::Stdout>>,
-    configuration: &Configuration,
     context: &Context,
     widgets: &Vec<PageWidget<'_>>,
     page: usize,
@@ -95,7 +95,7 @@ fn render(
                 .unwrap_or_else(|| Color::Black)),
         )
         .borders(Borders::ALL)
-        .title(configuration.title.as_str())
+        .title(context.configuration.title.as_str())
         .title_alignment(Alignment::Center)
         .border_type(BorderType::Rounded);
     let content_rect = presentation_window.inner(size);

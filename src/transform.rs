@@ -15,6 +15,7 @@ use syntect::util::LinesWithEndings;
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans, Text};
 
+use crate::configuration::Configuration;
 use crate::presentation::Page;
 
 /// A collection of sections.
@@ -156,6 +157,9 @@ impl<'a> Section<'a> {
 /// The context used during transform.
 #[derive(Clone)]
 pub struct Context<'a> {
+    /// The configuration for the presentation.
+    pub configuration: &'a Configuration,
+
     /// The footnotes on the current page.
     pub footnotes: Footnotes<'a>,
 
@@ -166,10 +170,11 @@ pub struct Context<'a> {
     pub theme: Theme,
 }
 
-impl<'a> Context<'a> {
+impl<'a> From<&'a Configuration> for Context<'a> {
     /// Constructs an empty context.
-    pub fn empty() -> Self {
-        Context {
+    fn from(source: &'a Configuration) -> Self {
+        Self {
+            configuration: source,
             footnotes: Default::default(),
             syntax_set: SyntaxSet::load_defaults_newlines(),
             theme: ThemeSet::load_defaults()
