@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::io;
@@ -8,6 +9,7 @@ use std::process;
 use rupert_macros::{partial_derive, partial_struct, Partial};
 use serde::{Deserialize, Serialize};
 use toml;
+use tui::style::{Color, Modifier};
 
 use crate::presentation;
 
@@ -26,6 +28,13 @@ pub struct Configuration {
     /// The page break configuration.
     #[partial_default(presentation::PageBreakCondition::ThematicBreak)]
     pub page_break: presentation::PageBreakCondition,
+
+    /// The default style for text.
+    #[partial_default(Style {
+        color: Color::White,
+        modifiers: ::std::collections::HashSet::new(),
+    })]
+    pub default_style: Style,
 
     /// The various commands executed during presentation.
     pub commands: Commands,
@@ -193,6 +202,52 @@ impl Command {
             .current_dir(cwd)
             .spawn()?
             .wait()
+    }
+}
+
+/// The style of a part of text.
+#[derive(Clone, Deserialize, Serialize, Partial)]
+#[partial_struct(StyleFragment)]
+#[partial_derive(Clone, Deserialize, Serialize)]
+pub struct Style {
+    /// The forground colour.
+    #[partial_default(Color::White)]
+    color: Color,
+
+    /// Additional modifiers.
+    modifiers: HashSet<StyleModifier>,
+}
+
+/// A style modifier.
+#[derive(Clone, Copy, Eq, Hash, PartialEq, Deserialize, Serialize)]
+pub enum StyleModifier {
+    Bold,
+    Dim,
+    Italic,
+    Underlined,
+    Hidden,
+    CrossedOut,
+}
+
+impl From<StyleModifier> for Modifier {
+    fn from(source: StyleModifier) -> Modifier {
+        match source {
+            StyleModifier::Bold => Modifier::BOLD,
+            StyleModifier::Dim => Modifier::DIM,
+            StyleModifier::Italic => Modifier::ITALIC,
+            StyleModifier::Underlined => Modifier::UNDERLINED,
+            StyleModifier::Hidden => Modifier::HIDDEN,
+            StyleModifier::CrossedOut => Modifier::CROSSED_OUT,
+        }
+    }
+}
+
+impl<'a> From<&'a Style> for tui::style::Style {
+    fn from(source: &'a Style) -> Self {
+        source.modifiers.iter().fold(
+            tui::style::Style::default().fg(source.color),
+            |acc, &modifier| acc.add_modifier(modifier.into()),
+        )
     }
 }
 

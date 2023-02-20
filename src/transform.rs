@@ -37,7 +37,12 @@ impl<'a> Sections<'a> {
     pub fn from_page(context: &mut Context<'a>, page: &'a Page<'a>) -> Self {
         let mut sections = Vec::new();
         for source in page.nodes() {
-            section(context, source, &mut sections, Style::default());
+            section(
+                context,
+                source,
+                &mut sections,
+                (&context.configuration.default_style).into(),
+            );
         }
         sections.into()
     }
