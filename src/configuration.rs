@@ -36,6 +36,30 @@ pub struct Configuration {
     })]
     pub default_style: Style,
 
+    /// The style of headings of level 1.
+    #[partial_struct(HeadingStyleFragment<1>)]
+    pub heading_style1: HeadingStyle<1>,
+
+    /// The style of headings of level 2.
+    #[partial_struct(HeadingStyleFragment<2>)]
+    pub heading_style2: HeadingStyle<2>,
+
+    /// The style of headings of level 3.
+    #[partial_struct(HeadingStyleFragment<3>)]
+    pub heading_style3: HeadingStyle<3>,
+
+    /// The style of headings of level 4.
+    #[partial_struct(HeadingStyleFragment<4>)]
+    pub heading_style4: HeadingStyle<4>,
+
+    /// The style of headings of level 5.
+    #[partial_struct(HeadingStyleFragment<5>)]
+    pub heading_style5: HeadingStyle<5>,
+
+    /// The style of headings of level 6.
+    #[partial_struct(HeadingStyleFragment<6>)]
+    pub heading_style6: HeadingStyle<6>,
+
     /// The various commands executed during presentation.
     pub commands: Commands,
 }
@@ -248,6 +272,35 @@ impl<'a> From<&'a Style> for tui::style::Style {
             tui::style::Style::default().fg(source.color),
             |acc, &modifier| acc.add_modifier(modifier.into()),
         )
+    }
+}
+
+/// The prefix and style for a heading level.
+#[derive(Clone, Deserialize, Serialize, Partial)]
+#[partial_struct(HeadingStyleFragment)]
+#[partial_derive(Clone, Deserialize, Serialize)]
+pub struct HeadingStyle<const N: usize> {
+    /// The prefix string for this header
+    pub prefix: String,
+
+    /// The style for this header.
+    #[partial_struct(StyleFragment)]
+    #[partial_default(StyleFragment {
+        modifiers: Some([StyleModifier::Underlined].into_iter().collect()),
+        ..Default::default()
+    })]
+    pub style: Style,
+}
+
+impl<const N: usize> Default for HeadingStyle<N> {
+    fn default() -> Self {
+        Self {
+            prefix: (0..N).map(|_| '#').chain([' ']).collect(),
+            style: Style {
+                color: Color::White,
+                modifiers: [StyleModifier::Underlined].into_iter().collect(),
+            },
+        }
     }
 }
 

@@ -446,12 +446,30 @@ fn section<'a>(
         }
 
         NodeValue::Heading(heading) => {
-            let text = Spans::from(root_inlines(
+            let prefix = match heading.level {
+                1 => context.configuration.heading_style1.prefix.clone(),
+                2 => context.configuration.heading_style2.prefix.clone(),
+                3 => context.configuration.heading_style3.prefix.clone(),
+                4 => context.configuration.heading_style4.prefix.clone(),
+                5 => context.configuration.heading_style1.prefix.clone(),
+                6 => context.configuration.heading_style6.prefix.clone(),
+                n => panic!("unexpected level: {}", n),
+            };
+            let header_style = match heading.level {
+                1 => &context.configuration.heading_style1.style,
+                2 => &context.configuration.heading_style2.style,
+                3 => &context.configuration.heading_style3.style,
+                4 => &context.configuration.heading_style4.style,
+                5 => &context.configuration.heading_style1.style,
+                6 => &context.configuration.heading_style6.style,
+                n => panic!("unexpected level: {}", n),
+            };
+            let mut text = Spans::from(root_inlines(
                 context,
                 source.children(),
-                style.add_modifier(Modifier::UNDERLINED),
-            ))
-            .into();
+                header_style.into(),
+            ));
+            text.0.insert(0, prefix.into());
             let level = heading.level as u8;
             target.push(Section::Heading { text, level });
         }

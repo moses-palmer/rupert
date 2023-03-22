@@ -1,5 +1,3 @@
-use std::iter::repeat;
-
 use tui::buffer::Buffer;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
@@ -519,20 +517,11 @@ impl<'a> Section<'a> {
         area: Rect,
         buf: &mut Buffer,
         text: &Spans<'a>,
-        level: &u8,
+        _level: &u8,
     ) {
-        Paragraph::new({
-            let mut text = text.clone();
-            text.0.insert(
-                0,
-                Span::raw(
-                    repeat('#').take(*level as usize).collect::<String>() + " ",
-                ),
-            );
-            text
-        })
-        .wrap(Wrap { trim: true })
-        .render(area, buf);
+        Paragraph::new(text.clone())
+            .wrap(Wrap { trim: true })
+            .render(area, buf);
     }
 
     fn render_list(area: Rect, buf: &mut Buffer, content: &Sections<'a>) {
