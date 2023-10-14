@@ -41,22 +41,15 @@ where
             .unwrap_or_else(|| Ok(configuration))?,
     );
 
-    let pages = Ok(presentation
+    let pages = presentation
         .pages(configuration.page_break.clone())
-        .collect::<Vec<_>>())
-    .and_then(|pages| {
-        if pages.len() < 1 {
-            Err(format!("Invalid presentation: no pages"))
-        } else {
-            Ok(pages)
-        }
-    })?;
-
+        .collect::<Vec<_>>();
     let page_collector = widget::PageCollector::collect(&configuration, &pages);
-    let context = page_collector.clone_context();
-    let widgets = page_collector.finish();
+    let widgets = page_collector
+        .finish()
+        .expect("Invalid presentation: no pages");
 
-    ui::run(path, context, widgets)
+    ui::run(path, widgets)
 }
 
 /// Initialises the application and returns the root directory and

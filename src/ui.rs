@@ -12,8 +12,8 @@ use tui::text::Text;
 use tui::widgets::{Block, BorderType, Borders, Paragraph};
 use tui::Frame;
 
-use crate::transform::{color, Context};
-use crate::widget::PageWidget;
+use crate::transform::color;
+use crate::widget::PageWidgets;
 
 /// Runs the UI main loop.
 ///
@@ -22,26 +22,24 @@ use crate::widget::PageWidget;
 /// # Arguments
 /// *  `path` - The path to the presentation to display.
 /// *  `configuraiton` - The application configuration.
-/// *  `context` - A presentation context.
 /// *  `pages` - The pages of the presentation.
-pub fn run<P>(
-    path: P,
-    context: Context,
-    pages: Vec<PageWidget>,
-) -> Result<(), String>
+pub fn run<P>(path: P, pages: PageWidgets) -> Result<(), String>
 where
     P: AsRef<Path>,
 {
     let mut terminal = Terminal::new()?;
     let mut page = 0usize;
+    let context = pages.context();
 
-    context.configuration.commands.initialize(&path);
+    if let Ok(path) = path.as_ref().canonicalize() {
+        context.configuration.commands.initialize(&path);
+    }
 
     #[allow(unused_must_use)]
     loop {
         terminal
             .0
-            .draw(|frame| render(frame, &context, &pages, page))
+            .draw(|frame| render(frame, &pages, page))
             .map(|_| ())
             .or_else(|_| terminal.0.clear())
             .map_err(|e| format!("Failed to render TUI: {}", e));
@@ -63,25 +61,30 @@ where
                 _ => continue,
             }
 
-            context
-                .configuration
-                .commands
-                .update(&path, page + 1, pages.len());
+            if let Ok(path) = path.as_ref().canonicalize() {
+                context.configuration.commands.update(
+                    &path,
+                    page + 1,
+                    pages.len(),
+                );
+            }
         }
     }
 
-    context.configuration.commands.finalize(&path);
+    if let Ok(path) = path.as_ref().canonicalize() {
+        context.configuration.commands.finalize(&path);
+    }
 
     Ok(())
 }
 
 fn render(
     frame: &mut Frame<CrosstermBackend<io::Stdout>>,
-    context: &Context,
-    widgets: &Vec<PageWidget<'_>>,
+    pages: &PageWidgets<'_>,
     page: usize,
 ) {
     let size = frame.size();
+    let context = pages.context();
 
     // The window containing the presentation and the rectangle for content
     let presentation_window = Block::default()
@@ -111,9 +114,9 @@ fn render(
         .split(content_rect);
 
     frame.render_widget(presentation_window, size);
-    frame.render_widget(&widgets[page], main_layout[0]);
+    frame.render_widget(&pages[page], main_layout[0]);
     frame.render_widget(
-        Paragraph::new(Text::raw(format!("{} / {}", page + 1, widgets.len())))
+        Paragraph::new(Text::raw(format!("{} / {}", page + 1, pages.len())))
             .alignment(Alignment::Right),
         main_layout[1],
     );

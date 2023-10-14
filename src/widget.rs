@@ -1,3 +1,6 @@
+use std::ops::Index;
+use std::rc::Rc;
+
 use tui::buffer::Buffer;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
@@ -15,6 +18,9 @@ pub struct PageWidget<'a> {
 
     /// All footnotes referenced on this page.
     footnotes: FootnoteListing<'a>,
+
+    /// The presentation context.
+    context: Rc<Context<'a>>,
 }
 
 /// A widget representing pages being constructed.
@@ -29,11 +35,21 @@ pub struct PageCollector<'a> {
     footnotes: Vec<FootnoteIndices>,
 }
 
+/// A non-empty list of pages.
+pub struct PageWidgets<'a>(Vec<PageWidget<'a>>);
+
 /// The indices of the footnotes referenced on a page.
 struct FootnoteIndices(Vec<usize>);
 
 /// A description of the footnotes for a page.
 struct FootnoteListing<'a>(Vec<(String, Sections<'a>)>);
+
+impl<'a> PageWidget<'a> {
+    /// The context used during page construction and rendering.
+    pub fn context(&self) -> &Context<'a> {
+        self.context.as_ref()
+    }
+}
 
 impl<'a> Widget for &'a PageWidget<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
@@ -80,23 +96,25 @@ impl<'a> PageCollector<'a> {
         }
     }
 
-    /// Clones the context used during collection.
-    pub fn clone_context(&self) -> Context<'a> {
-        self.context.clone()
-    }
-
     /// Finishes page collection.
-    pub fn finish(self) -> Vec<PageWidget<'a>> {
+    pub fn finish(
+        self,
+    ) -> Result<
+        PageWidgets<'a>,
+        <PageWidgets<'a> as TryFrom<Vec<PageWidget<'a>>>>::Error,
+    > {
         let Self {
             context,
             sections,
             footnotes,
         } = self;
+        let context = Rc::new(context);
         sections
             .into_iter()
             .zip(footnotes.into_iter())
             .map(|(sections, footnotes)| PageWidget {
                 sections,
+                context: context.clone(),
                 footnotes: FootnoteListing(
                     footnotes
                         .into_iter()
@@ -111,7 +129,40 @@ impl<'a> PageCollector<'a> {
                         .collect(),
                 ),
             })
-            .collect()
+            .collect::<Vec<_>>()
+            .try_into()
+    }
+}
+
+impl<'a> PageWidgets<'a> {
+    /// The context used during construction of the pages.
+    pub fn context(&self) -> &Context<'a> {
+        self.0.first().unwrap().context()
+    }
+
+    /// The number of pages.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl<'a> Index<usize> for PageWidgets<'a> {
+    type Output = PageWidget<'a>;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl<'a> TryFrom<Vec<PageWidget<'a>>> for PageWidgets<'a> {
+    type Error = ();
+
+    fn try_from(source: Vec<PageWidget<'a>>) -> Result<Self, Self::Error> {
+        if !source.is_empty() {
+            Ok(Self(source))
+        } else {
+            Err(())
+        }
     }
 }
 
