@@ -1,0 +1,9 @@
+#!/bin/sh
+
+# Rupert ensures that the current working directory is the directory containing
+# the presentation
+. ./lib
+set -eu
+
+
+pdf_viewer_stop "$PRESENTATION_PATH_PDF"

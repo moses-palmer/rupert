@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# Rupert ensures that the current working directory is the directory containing
+# the presentation
+. ./lib
+set -eu
+
+
+# Launch the external PDF viewer
+pdf_viewer_set_page "$PRESENTATION_PATH_PDF" "$PRESENTATION_CURRENT_PAGE"
+
+
+if [ -n "$(git tag --list "$GIT_TAG")" ]; then
+    git checkout "$GIT_TAG" >/dev/null 2>&1
+    vim_reload
+fi

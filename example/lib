@@ -1,0 +1,88 @@
+##
+# The full path to the presentation markdown file.
+export PRESENTATION_PATH_MD="$1"
+
+##
+# The build target directory.
+export TARGET_DIR="$(dirname "$PRESENTATION_PATH_MD")/../target"
+
+##
+# The full path to the presentation PDF file.
+PRESENTATION_BASE="$(basename "$PRESENTATION_PATH_MD")"
+export PRESENTATION_PATH_PDF="$TARGET_DIR/${PRESENTATION_BASE%.md}.pdf"
+
+##
+# The current page.
+export PRESENTATION_CURRENT_PAGE="$2"
+
+##
+# The D-BUS interface for the PDF viewer.
+DBUS_INTERFACE="com.newrainsoftware.PDFViewer"
+
+##
+# The D-BUS object path.
+DBUS_PATH="/$(echo "$DBUS_INTERFACE" | sed 's:\.:/:g')"
+
+##
+# The git tag used for the current page.
+export GIT_TAG="page/$PRESENTATION_CURRENT_PAGE"
+
+##
+# The pipe used to control the vim instance.
+export VIM_REMOTE_PIPE="$TARGET_DIR/.vim-pipe"
+
+
+##
+# Launches the external PDF viewer.
+#
+# Arguments:
+# $1: The path to the PDF.
+pdf_viewer_start() {
+    ./pdf-viewer "$1" 2>/dev/null &
+}
+
+
+##
+# Terminates the external PDF viewer.
+#
+# Arguments:
+# $1: The path to the PDF.
+pdf_viewer_stop() {
+    dbus-send --session \
+        --type=method_call \
+        --dest="$DBUS_INTERFACE" \
+        "$DBUS_PATH" \
+        "$DBUS_INTERFACE.Exit"
+}
+
+
+##
+# Terminates the external PDF viewer.
+#
+# Arguments:
+# $1: The path to the PDF.
+# $2: The page number to set.
+pdf_viewer_set_page() {
+    dbus-send --session \
+        --type=method_call \
+        --dest="$DBUS_INTERFACE" \
+        "$DBUS_PATH" \
+        "org.freedesktop.DBus.Properties.Set" \
+        "string:$DBUS_INTERFACE" \
+        string:Page \
+        variant:uint32:"$2"
+}
+
+
+##
+# Makes the vim instance reload all documents.
+vim_reload() {
+    echo ":ea" > "$VIM_REMOTE_PIPE"
+}
+
+
+##
+# Quits vim.
+vim_quit() {
+    echo ":qa!" > "$VIM_REMOTE_PIPE"
+}

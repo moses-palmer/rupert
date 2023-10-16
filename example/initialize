@@ -1,0 +1,25 @@
+#!/bin/sh
+
+# Rupert ensures that the current working directory is the directory containing
+# the presentation
+. ./lib
+set -eu
+
+# Make sure that we have a graphical presentation
+make ../target/presentation.pdf
+
+# Launch the external PDF viewer
+pdf_viewer_start "$PRESENTATION_PATH_PDF"
+
+# Launch vim with remote control in a new pane
+tmux split-window \
+    -h \
+    -b \
+    -c "$(pwd)/.." \
+    vim +"source example/remote.vim | call StartServer('$VIM_REMOTE_PIPE')"
+
+# Launch a shell
+tmux select-pane -R
+tmux split-window \
+    -v \
+    -c "$(pwd)/.."
