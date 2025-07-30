@@ -1,5 +1,3 @@
-use std::iter::repeat;
-
 use tui::buffer::Buffer;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
@@ -67,17 +65,17 @@ impl<'a> PageCollector<'a> {
         iter: &'a Vec<Page<'a>>,
     ) -> Self {
         let mut context = Context::empty();
-        let (sections, footnotes) = iter.into_iter().fold(
+        let (sections, footnotes) = iter.iter().fold(
             (Vec::new(), Vec::new()),
             |(mut sections, mut footnotes), page| {
-                sections.push(Sections::from_page(&mut context, &page));
+                sections.push(Sections::from_page(&mut context, page));
                 footnotes.push(context.footnotes.extract_references());
                 (sections, footnotes)
             },
         );
         Self {
             context,
-            sections: sections.into(),
+            sections,
             footnotes: footnotes.into_iter().map(FootnoteIndices).collect(),
         }
     }
@@ -91,7 +89,7 @@ impl<'a> PageCollector<'a> {
         } = self;
         let widgets = sections
             .into_iter()
-            .zip(footnotes.into_iter())
+            .zip(footnotes)
             .map(|(sections, footnotes)| PageWidget {
                 sections,
                 footnotes: FootnoteListing(
@@ -342,14 +340,10 @@ impl<'a> Section<'a> {
     fn height_table(_width: u16, rows: &[TableRow<'a>]) -> u16 {
         // The height is the sum of all row heights plus a separator line
         // between every row and the block frame
-        if rows.len() > 0 {
+        if !rows.is_empty() {
             let height_border = 2;
-            let height_header = rows
-                .iter()
-                .filter(|row| row.header())
-                .next()
-                .map(|_| 1)
-                .unwrap_or(0);
+            let height_header =
+                rows.iter().find(|row| row.header()).map(|_| 1).unwrap_or(0);
             let height_rows = rows
                 .iter()
                 .filter(|row| !row.header())
@@ -459,22 +453,22 @@ impl<'a> Section<'a> {
         use Section::*;
         match &self {
             BlockQuote { content } => {
-                Self::render_block_quote(area, buf, &content)
+                Self::render_block_quote(area, buf, content)
             }
             Code { text } => Self::render_code(area, buf, text),
             Heading { text, level } => {
                 Self::render_heading(area, buf, text, level)
             }
-            List { content } => Self::render_list(area, buf, &content),
+            List { content } => Self::render_list(area, buf, content),
             ListItemOrdered {
                 content,
                 ordinal,
                 delimiter,
             } => Self::render_list_item_ordered(
-                area, buf, &content, ordinal, delimiter,
+                area, buf, content, ordinal, delimiter,
             ),
             ListItemUnordered { content, bullet } => {
-                Self::render_list_item_unordered(area, buf, &content, bullet)
+                Self::render_list_item_unordered(area, buf, content, bullet)
             }
             Paragraph { text } => Self::render_paragraph(area, buf, text),
             Table { rows } => Self::render_table(area, buf, rows),
@@ -522,7 +516,9 @@ impl<'a> Section<'a> {
             text.0.insert(
                 0,
                 Span::raw(
-                    repeat('#').take(*level as usize).collect::<String>() + " ",
+                    std::iter::repeat_n('#', *level as usize)
+                        .collect::<String>()
+                        + " ",
                 ),
             );
             text
@@ -552,8 +548,7 @@ impl<'a> Section<'a> {
                 .as_ref(),
             )
             .split(area);
-        Paragraph::new(format!("{}{}", ordinal, delimiter))
-            .render(parts[0], buf);
+        Paragraph::new(format!("{ordinal}{delimiter}")).render(parts[0], buf);
         content.render(parts[1], buf);
     }
 
@@ -605,8 +600,7 @@ impl<'a> Section<'a> {
         .block(Block::default().borders(Borders::ALL))
         .column_spacing(1)
         .widths(&widths);
-        if let Some(header_row) = rows.iter().filter(|row| row.header()).next()
-        {
+        if let Some(header_row) = rows.iter().find(|row| row.header()) {
             table = table
                 .header(Row::new(header_row.cells().iter().cloned()).style(
                     Style::default().add_modifier(Modifier::UNDERLINED),

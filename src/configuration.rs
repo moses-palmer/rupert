@@ -5,9 +5,8 @@ use std::ops::Range;
 use std::path::Path;
 use std::process;
 
-use rupert_macros::{partial_derive, partial_struct, Partial};
+use rupert_macros::{Partial, partial_derive, partial_struct};
 use serde::{Deserialize, Serialize};
-use toml;
 
 use crate::presentation;
 
@@ -115,7 +114,7 @@ impl Commands {
         {
             Ok(path) => path,
             Err(e) => {
-                eprintln!("Failed to retrieve path to presentation: {}", e);
+                eprintln!("Failed to retrieve path to presentation: {e}");
                 return;
             }
         };
@@ -123,8 +122,7 @@ impl Commands {
             Ok(path) => path,
             Err(e) => {
                 eprintln!(
-                    "Failed to generate canonical path to presentation: {}",
-                    e,
+                    "Failed to generate canonical path to presentation: {e}",
                 );
                 return;
             }
@@ -187,9 +185,11 @@ impl Command {
         P: AsRef<Path>,
     {
         process::Command::new(&self.binary)
-            .args(self.arguments.iter().map(|argument| {
-                interpolate(&argument, |key| replacements(key))
-            }))
+            .args(
+                self.arguments.iter().map(|argument| {
+                    interpolate(argument, |key| replacements(key))
+                }),
+            )
             .current_dir(cwd)
             .spawn()?
             .wait()
@@ -203,7 +203,7 @@ impl Command {
 pub fn load() -> io::Result<ConfigurationFragment> {
     Ok([env::var(CONFIGURATION_FILE_PATH_ENV).ok().map(load_from)]
         .into_iter()
-        .filter_map(|i| i)
+        .flatten()
         .collect::<io::Result<Vec<_>>>()?
         .into_iter()
         .fold(ConfigurationFragment::default(), |acc, partial| {
@@ -219,8 +219,7 @@ fn load_from<P>(path: P) -> io::Result<ConfigurationFragment>
 where
     P: AsRef<Path>,
 {
-    toml::from_str(&fs::read_to_string(&path)?)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    toml::from_str(&fs::read_to_string(&path)?).map_err(io::Error::other)
 }
 
 /// Interpolates all replacements in `string` given replacements in
@@ -294,9 +293,9 @@ mod tests {
     fn interpolate_simple() {
         assert_eq!(
             "replacement 1, replacement 2, ${r3}",
-            interpolate("${r1}, ${r2}, ${r3}".into(), |r| match r {
-                "r1" => Some(&"replacement 1"),
-                "r2" => Some(&"replacement 2"),
+            interpolate("${r1}, ${r2}, ${r3}", |r| match r {
+                "r1" => Some("replacement 1"),
+                "r2" => Some("replacement 2"),
                 _ => None,
             }),
         );
