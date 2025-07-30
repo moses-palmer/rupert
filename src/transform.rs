@@ -12,8 +12,8 @@ use syntect::highlighting::{
 use syntect::parsing::SyntaxSet;
 use syntect::util::LinesWithEndings;
 
-use tui::style::{Color, Modifier, Style};
-use tui::text::{Span, Spans, Text};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span, Text};
 
 use crate::presentation::Page;
 
@@ -97,7 +97,7 @@ pub enum Section<'a> {
     /// A heading section.
     Heading {
         /// The text of the section.
-        text: Spans<'a>,
+        text: Vec<Span<'a>>,
 
         /// The heading level.
         level: u8,
@@ -362,47 +362,40 @@ fn section<'a>(
         NodeValue::CodeBlock(code) => {
             let syntax = context
                 .syntax_set
-                .find_syntax_by_token(&String::from_utf8_lossy(&code.info))
+                .find_syntax_by_token(&code.info)
                 .unwrap_or_else(|| context.syntax_set.find_syntax_plain_text());
-            let text = String::from_utf8_lossy(&code.literal).into_owned();
+            let text = code.literal.to_owned();
             let mut h = HighlightLines::new(syntax, &context.theme);
             let lines = LinesWithEndings::from(&text)
                 .map(|line| {
                     h.highlight_line(line, &context.syntax_set).map(|line| {
-                        Spans(
-                            line.iter()
-                                .map(|(style, text)| {
-                                    let s = Style::default()
-                                        .fg(color(&style.foreground))
-                                        .bg(color(&style.background));
-                                    if style
-                                        .font_style
-                                        .contains(FontStyle::BOLD)
-                                    {
-                                        s.add_modifier(Modifier::BOLD);
-                                    }
-                                    if style
-                                        .font_style
-                                        .contains(FontStyle::ITALIC)
-                                    {
-                                        s.add_modifier(Modifier::ITALIC);
-                                    }
-                                    if style
-                                        .font_style
-                                        .contains(FontStyle::UNDERLINE)
-                                    {
-                                        s.add_modifier(Modifier::UNDERLINED);
-                                    }
+                        line.iter()
+                            .map(|(style, text)| {
+                                let mut s = Style::default()
+                                    .fg(color(&style.foreground))
+                                    .bg(color(&style.background));
+                                if style.font_style.contains(FontStyle::BOLD) {
+                                    s = s.add_modifier(Modifier::BOLD);
+                                }
+                                if style.font_style.contains(FontStyle::ITALIC)
+                                {
+                                    s = s.add_modifier(Modifier::ITALIC);
+                                }
+                                if style
+                                    .font_style
+                                    .contains(FontStyle::UNDERLINE)
+                                {
+                                    s = s.add_modifier(Modifier::UNDERLINED);
+                                }
 
-                                    Span::styled(text.to_string() + "\n", s)
-                                })
-                                .collect(),
-                        )
+                                Span::styled(text.to_string() + "\n", s)
+                            })
+                            .collect()
                     })
                 })
                 .collect::<Result<Vec<_>, _>>();
             let text = match lines {
-                Ok(lines) => Text { lines },
+                Ok(lines) => lines.into(),
                 Err(_) => Text::raw(text),
             };
             target.push(Section::Code { text });
@@ -411,7 +404,6 @@ fn section<'a>(
         NodeValue::FrontMatter(_) => {}
 
         NodeValue::FootnoteDefinition(footnote) => {
-            let name = String::from_utf8_lossy(footnote);
             let mut content = Vec::new();
             sections(
                 context,
@@ -420,16 +412,16 @@ fn section<'a>(
                 style.add_modifier(Modifier::DIM),
             );
             let content = content.into();
-            context.footnotes.definition(&name, content);
+            context.footnotes.definition(&footnote.name, content);
         }
 
         NodeValue::Heading(heading) => {
-            let text = Spans::from(root_inlines(
+            let text = root_inlines(
                 context,
                 source.children(),
                 style.add_modifier(Modifier::UNDERLINED),
-            ));
-            let level = heading.level as u8;
+            );
+            let level = heading.level;
             target.push(Section::Heading { text, level });
         }
 
@@ -464,7 +456,7 @@ fn section<'a>(
 
         NodeValue::Paragraph => {
             let text =
-                Spans::from(root_inlines(context, source.children(), style))
+                Line::from(root_inlines(context, source.children(), style))
                     .into();
             target.push(Section::Paragraph { text });
         }
@@ -482,12 +474,9 @@ fn section<'a>(
                     None
                 }
             }) {
-                let text = Spans::from(root_inlines(
-                    context,
-                    source.children(),
-                    style,
-                ))
-                .into();
+                let text =
+                    Line::from(root_inlines(context, source.children(), style))
+                        .into();
                 row.push(text);
             }
         }
@@ -509,7 +498,7 @@ fn section<'a>(
         | NodeValue::DescriptionTerm => {
             unimplemented!(
                 "Description lists are not supported, but found on line {}",
-                source.data.borrow().start_line,
+                source.data.borrow().sourcepos.start.line,
             )
         }
 
@@ -518,14 +507,14 @@ fn section<'a>(
             unimplemented!(
                 "The element {:?} on line {} is not supported.",
                 node,
-                source.data.borrow().start_line
+                source.data.borrow().sourcepos.start.line
             )
         }
 
         _ => unimplemented!(
             "{:?} was unexpected on line {}",
             node,
-            source.data.borrow().start_line,
+            source.data.borrow().sourcepos.start.line,
         ),
     }
 }
@@ -581,9 +570,7 @@ fn inline<'a>(
     use NodeValue::*;
     let node = &source.data.borrow().value;
     match node {
-        Code(code) => target.push(Span::raw(
-            String::from_utf8_lossy(&code.literal).into_owned(),
-        )),
+        Code(code) => target.push(Span::raw(code.literal.to_owned())),
 
         Emph => {
             inlines(
@@ -595,8 +582,7 @@ fn inline<'a>(
         }
 
         FootnoteReference(footnote) => {
-            let name = String::from_utf8_lossy(footnote);
-            let index = context.footnotes.reference(&name);
+            let index = context.footnotes.reference(&footnote.name);
             target
                 .push(Footnotes::index_to_superscript(index).to_string().into())
         }
@@ -612,10 +598,7 @@ fn inline<'a>(
                 target,
                 style.add_modifier(Modifier::UNDERLINED).fg(Color::Blue),
             );
-            target.push(Span::styled(
-                format!(" <{}>", String::from_utf8_lossy(&link.url)),
-                style,
-            ));
+            target.push(Span::styled(format!(" <{}>", link.url), style));
         }
 
         SoftBreak => target.push(Span::raw(" ")),
@@ -639,17 +622,14 @@ fn inline<'a>(
         }
 
         Text(text) => {
-            target.push(Span::styled(
-                String::from_utf8_lossy(text).into_owned(),
-                style,
-            ));
+            target.push(Span::styled(text.to_owned(), style));
         }
 
         // TODO: Enable superscript and handle it
         Superscript => {
             unimplemented!(
                 "Superscript is are not supported, but found on line {}",
-                source.data.borrow().start_line,
+                source.data.borrow().sourcepos.start.line,
             )
         }
 
@@ -657,7 +637,7 @@ fn inline<'a>(
         TaskItem(_) => {
             unimplemented!(
                 "Task item lists are not supported, but found on line {}",
-                source.data.borrow().start_line,
+                source.data.borrow().sourcepos.start.line,
             )
         }
 
@@ -666,14 +646,14 @@ fn inline<'a>(
             unimplemented!(
                 "The element {:?} on line {} is not supported.",
                 node,
-                source.data.borrow().start_line
+                source.data.borrow().sourcepos.start.line
             )
         }
 
         _ => unimplemented!(
             "{:?} was unexpected on line {}",
             node,
-            source.data.borrow().start_line,
+            source.data.borrow().sourcepos.start.line,
         ),
     }
 }
