@@ -6,7 +6,7 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-crossterm = "0.25"
+crossterm = "0.28"
 serde = { version = "1", features = ["derive"] }
 syntect = "5.2"
 toml = "0.9"
