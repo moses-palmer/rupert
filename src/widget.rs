@@ -1,8 +1,8 @@
-use tui::buffer::Buffer;
-use tui::layout::{Constraint, Direction, Layout, Rect};
-use tui::style::{Color, Modifier, Style};
-use tui::text::{Span, Spans, Text};
-use tui::widgets::{Block, Borders, Paragraph, Row, Table, Widget, Wrap};
+use ratatui::buffer::Buffer;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span, Text};
+use ratatui::widgets::{Block, Borders, Paragraph, Row, Table, Widget, Wrap};
 
 use crate::configuration::Configuration;
 use crate::presentation::Page;
@@ -205,7 +205,7 @@ impl<'a> Sections<'a> {
 
 impl<'a> Widget for &'a Sections<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let parts = Layout::default()
+        let areas = Layout::default()
             .direction(Direction::Vertical)
             .constraints(
                 self.iter()
@@ -221,21 +221,20 @@ impl<'a> Widget for &'a Sections<'a> {
                     .collect::<Vec<_>>(),
             )
             .split(area);
-        for (i, (mut part, section)) in
-            parts.into_iter().zip(self.iter()).enumerate()
-        {
+        for (i, (area, section)) in areas.iter().zip(self.iter()).enumerate() {
+            let mut area = *area;
             let padding = section.padding();
             let is_first = i == 0;
             let is_last = i == self.len() - 1;
             if !is_first {
-                part.y += padding.0;
-                part.height = part.height.saturating_sub(padding.0);
+                area.y += padding.0;
+                area.height = area.height.saturating_sub(padding.0);
             }
             if !is_last {
-                part.height =
-                    part.height.saturating_sub(padding.1 + self.inner_margin);
+                area.height =
+                    area.height.saturating_sub(padding.1 + self.inner_margin);
             }
-            section.render(part, buf);
+            section.render(area, buf);
         }
     }
 }
@@ -290,10 +289,10 @@ impl<'a> Section<'a> {
         text.height() as u16
     }
 
-    fn height_heading(width: u16, text: &Spans<'a>, level: &u8) -> u16 {
+    fn height_heading(width: u16, text: &[Span<'a>], level: &u8) -> u16 {
         // A heading is a single line, with an additional header determined by
         // the level
-        Self::height_line(width, *level as u16 + 1, &text.0)
+        Self::height_line(width, *level as u16 + 1, text)
     }
 
     fn height_list(width: u16, content: &Sections<'a>) -> u16 {
@@ -326,11 +325,11 @@ impl<'a> Section<'a> {
         if text
             .lines
             .iter()
-            .any(|line| Self::contains_non_whitespace(&line.0))
+            .any(|line| Self::contains_non_whitespace(&line.spans))
         {
             text.lines
                 .iter()
-                .map(|line| Self::height_line(width, 0, &line.0))
+                .map(|line| Self::height_line(width, 0, &line.spans))
                 .sum::<u16>()
         } else {
             0
@@ -508,12 +507,12 @@ impl<'a> Section<'a> {
     fn render_heading(
         area: Rect,
         buf: &mut Buffer,
-        text: &Spans<'a>,
+        text: &[Span<'a>],
         level: &u8,
     ) {
         Paragraph::new({
-            let mut text = text.clone();
-            text.0.insert(
+            let mut text = text.to_vec();
+            text.insert(
                 0,
                 Span::raw(
                     std::iter::repeat_n('#', *level as usize)
@@ -521,7 +520,7 @@ impl<'a> Section<'a> {
                         + " ",
                 ),
             );
-            text
+            Line::from(text)
         })
         .wrap(Wrap { trim: true })
         .render(area, buf);
@@ -576,7 +575,7 @@ impl<'a> Section<'a> {
         if text
             .lines
             .iter()
-            .any(|line| Self::contains_non_whitespace(&line.0))
+            .any(|line| Self::contains_non_whitespace(&line.spans))
         {
             Paragraph::new(text.clone())
                 .wrap(Wrap { trim: true })
@@ -596,10 +595,10 @@ impl<'a> Section<'a> {
                         .height(1)
                 })
                 .collect::<Vec<Row>>(),
+            widths,
         )
         .block(Block::default().borders(Borders::ALL))
-        .column_spacing(1)
-        .widths(&widths);
+        .column_spacing(1);
         if let Some(header_row) = rows.iter().find(|row| row.header()) {
             table = table
                 .header(Row::new(header_row.cells().iter().cloned()).style(

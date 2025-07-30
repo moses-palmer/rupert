@@ -12,8 +12,8 @@ use syntect::highlighting::{
 use syntect::parsing::SyntaxSet;
 use syntect::util::LinesWithEndings;
 
-use tui::style::{Color, Modifier, Style};
-use tui::text::{Span, Spans, Text};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span, Text};
 
 use crate::presentation::Page;
 
@@ -97,7 +97,7 @@ pub enum Section<'a> {
     /// A heading section.
     Heading {
         /// The text of the section.
-        text: Spans<'a>,
+        text: Vec<Span<'a>>,
 
         /// The heading level.
         level: u8,
@@ -369,40 +369,33 @@ fn section<'a>(
             let lines = LinesWithEndings::from(&text)
                 .map(|line| {
                     h.highlight_line(line, &context.syntax_set).map(|line| {
-                        Spans(
-                            line.iter()
-                                .map(|(style, text)| {
-                                    let s = Style::default()
-                                        .fg(color(&style.foreground))
-                                        .bg(color(&style.background));
-                                    if style
-                                        .font_style
-                                        .contains(FontStyle::BOLD)
-                                    {
-                                        s.add_modifier(Modifier::BOLD);
-                                    }
-                                    if style
-                                        .font_style
-                                        .contains(FontStyle::ITALIC)
-                                    {
-                                        s.add_modifier(Modifier::ITALIC);
-                                    }
-                                    if style
-                                        .font_style
-                                        .contains(FontStyle::UNDERLINE)
-                                    {
-                                        s.add_modifier(Modifier::UNDERLINED);
-                                    }
+                        line.iter()
+                            .map(|(style, text)| {
+                                let mut s = Style::default()
+                                    .fg(color(&style.foreground))
+                                    .bg(color(&style.background));
+                                if style.font_style.contains(FontStyle::BOLD) {
+                                    s = s.add_modifier(Modifier::BOLD);
+                                }
+                                if style.font_style.contains(FontStyle::ITALIC)
+                                {
+                                    s = s.add_modifier(Modifier::ITALIC);
+                                }
+                                if style
+                                    .font_style
+                                    .contains(FontStyle::UNDERLINE)
+                                {
+                                    s = s.add_modifier(Modifier::UNDERLINED);
+                                }
 
-                                    Span::styled(text.to_string() + "\n", s)
-                                })
-                                .collect(),
-                        )
+                                Span::styled(text.to_string() + "\n", s)
+                            })
+                            .collect()
                     })
                 })
                 .collect::<Result<Vec<_>, _>>();
             let text = match lines {
-                Ok(lines) => Text { lines },
+                Ok(lines) => lines.into(),
                 Err(_) => Text::raw(text),
             };
             target.push(Section::Code { text });
@@ -423,12 +416,12 @@ fn section<'a>(
         }
 
         NodeValue::Heading(heading) => {
-            let text = Spans::from(root_inlines(
+            let text = root_inlines(
                 context,
                 source.children(),
                 style.add_modifier(Modifier::UNDERLINED),
-            ));
-            let level = heading.level as u8;
+            );
+            let level = heading.level;
             target.push(Section::Heading { text, level });
         }
 
@@ -463,7 +456,7 @@ fn section<'a>(
 
         NodeValue::Paragraph => {
             let text =
-                Spans::from(root_inlines(context, source.children(), style))
+                Line::from(root_inlines(context, source.children(), style))
                     .into();
             target.push(Section::Paragraph { text });
         }
@@ -481,12 +474,9 @@ fn section<'a>(
                     None
                 }
             }) {
-                let text = Spans::from(root_inlines(
-                    context,
-                    source.children(),
-                    style,
-                ))
-                .into();
+                let text =
+                    Line::from(root_inlines(context, source.children(), style))
+                        .into();
                 row.push(text);
             }
         }

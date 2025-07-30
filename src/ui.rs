@@ -4,13 +4,13 @@ use std::path::Path;
 use crossterm::event::{self, Event, KeyCode};
 use crossterm::execute;
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
-use tui::backend::CrosstermBackend;
+use ratatui::backend::CrosstermBackend;
 
-use tui::Frame;
-use tui::layout::{Alignment, Constraint, Direction, Layout};
-use tui::style::{Color, Style};
-use tui::text::Text;
-use tui::widgets::{Block, BorderType, Borders, Paragraph};
+use ratatui::Frame;
+use ratatui::layout::{Alignment, Constraint, Direction, Layout};
+use ratatui::style::{Color, Style};
+use ratatui::text::Text;
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
 use crate::configuration::Configuration;
 use crate::transform::{Context, color};
@@ -73,13 +73,13 @@ where
 }
 
 fn render(
-    frame: &mut Frame<CrosstermBackend<io::Stdout>>,
+    frame: &mut Frame,
     configuration: &Configuration,
     context: &Context,
     widgets: &[PageWidget<'_>],
     page: usize,
 ) {
-    let size = frame.size();
+    let area = frame.area();
 
     // The window containing the presentation and the rectangle for content
     let presentation_window = Block::default()
@@ -96,19 +96,19 @@ fn render(
         .title(configuration.title.as_str())
         .title_alignment(Alignment::Center)
         .border_type(BorderType::Rounded);
-    let content_rect = presentation_window.inner(size);
+    let content_rect = presentation_window.inner(area);
 
     // The layout for the presentation and the page display
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
         .margin(0)
         .constraints(
-            [Constraint::Length(size.height - 3), Constraint::Length(1)]
+            [Constraint::Length(area.height - 3), Constraint::Length(1)]
                 .as_ref(),
         )
         .split(content_rect);
 
-    frame.render_widget(presentation_window, size);
+    frame.render_widget(presentation_window, area);
     frame.render_widget(&widgets[page], main_layout[0]);
     frame.render_widget(
         Paragraph::new(Text::raw(format!("{} / {}", page + 1, widgets.len())))
@@ -117,7 +117,7 @@ fn render(
     );
 }
 
-struct Terminal(pub tui::Terminal<CrosstermBackend<io::Stdout>>);
+struct Terminal(pub ratatui::Terminal<CrosstermBackend<io::Stdout>>);
 
 impl Terminal {
     pub fn new() -> Result<Self, String> {
@@ -130,7 +130,7 @@ impl Terminal {
 
         let backend = CrosstermBackend::new(stdout);
 
-        tui::Terminal::new(backend)
+        ratatui::Terminal::new(backend)
             .map_err(|e| format!("Failed to initialise terminal: {e}"))
             .map(Self)
     }

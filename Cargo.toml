@@ -10,7 +10,7 @@ crossterm = "0.28"
 serde = { version = "1", features = ["derive"] }
 syntect = "5.2"
 toml = "0.9"
-tui = "0.19"
+ratatui = "0.29"
 rupert-macros = { path = "crates/rupert-macros" }
 
 [dependencies.comrak]
