@@ -93,15 +93,10 @@ impl Commands {
     /// # Arguments
     /// *  `path` - The path to the presentation.
     /// *  `command` - The optional command to execute.
-    /// *  `replacements` - A function converting keys to replacement strings.
-    ///    The key `"presentation.path"` will always be set to the absolute
-    ///    path of the presentation.
-    fn dispatch<'a, F, P>(
-        &self,
-        path: P,
-        command: &Option<Command>,
-        replacements: F,
-    ) where
+    /// *  `replacements` - A function converting keys to replacement strings. The key
+    ///    `"presentation.path"` will always be set to the absolute path of the presentation.
+    fn dispatch<'a, F, P>(&self, path: P, command: &Option<Command>, replacements: F)
+    where
         F: Fn(&str) -> Option<&'a str> + 'a,
         P: AsRef<Path>,
     {
@@ -121,9 +116,7 @@ impl Commands {
         let absolute = match path.as_ref().canonicalize() {
             Ok(path) => path,
             Err(e) => {
-                eprintln!(
-                    "Failed to generate canonical path to presentation: {e}",
-                );
+                eprintln!("Failed to generate canonical path to presentation: {e}",);
                 return;
             }
         };
@@ -168,9 +161,8 @@ pub struct Command {
 impl Command {
     /// Executes this command with arguments interpolated.
     ///
-    /// Parts of the string matching the format `"${token.name}"` will be
-    /// converted as `replacements("token.name")`, and the string is replaced
-    /// if a value is returned.
+    /// Parts of the string matching the format `"${token.name}"` will be converted as
+    /// `replacements("token.name")`, and the string is replaced if a value is returned.
     ///
     /// # Arguments
     /// *  `cwd` - The current working directory for the command.
@@ -186,9 +178,9 @@ impl Command {
     {
         process::Command::new(&self.binary)
             .args(
-                self.arguments.iter().map(|argument| {
-                    interpolate(argument, |key| replacements(key))
-                }),
+                self.arguments
+                    .iter()
+                    .map(|argument| interpolate(argument, |key| replacements(key))),
             )
             .current_dir(cwd)
             .spawn()?
@@ -198,8 +190,8 @@ impl Command {
 
 /// Loads the application configuration.
 ///
-/// If the environment variable `RUPERT_CONFIGURATION_FILE` is set, the
-/// configuration is loaded from that file, otherwise a default value is used.
+/// If the environment variable `RUPERT_CONFIGURATION_FILE` is set, the configuration is loaded
+/// from that file, otherwise a default value is used.
 pub fn load() -> io::Result<ConfigurationFragment> {
     Ok([env::var(CONFIGURATION_FILE_PATH_ENV).ok().map(load_from)]
         .into_iter()
@@ -222,8 +214,7 @@ where
     toml::from_str(&fs::read_to_string(&path)?).map_err(io::Error::other)
 }
 
-/// Interpolates all replacements in `string` given replacements in
-/// `replacements`.
+/// Interpolates all replacements in `string` given replacements in `replacements`.
 ///
 /// Tokens for which `replacements` returns `None` are kept.
 ///
@@ -236,9 +227,7 @@ where
 {
     let mut text = string.to_string();
     let mut index = 0;
-    while let Some((replacement_range, key_range)) =
-        next_replacement(index, &text)
-    {
+    while let Some((replacement_range, key_range)) = next_replacement(index, &text) {
         let key = &text[key_range.clone()];
         if let Some(replacement) = replacements(key).map(str::to_string) {
             index += replacement_range.start + replacement.len();
@@ -251,19 +240,16 @@ where
     text
 }
 
-/// Finds the range to be replaced by the next replacement token, and the
-/// range of the token itself.
+/// Finds the range to be replaced by the next replacement token, and the range of the token
+/// itself.
 ///
-/// Since a replacement token is marked with `"${token}"`, the replacement
-/// token will always be a subset of the text to be replcaed.
+/// Since a replacement token is marked with `"${token}"`, the replacement token will always be a
+/// subset of the text to be replcaed.
 ///
 /// # Arguments
 /// *  `offset` - The start offset. Characters before this will be ignored.
 /// *  `string` - The string in which to search.
-fn next_replacement(
-    offset: usize,
-    string: &str,
-) -> Option<(Range<usize>, Range<usize>)> {
+fn next_replacement(offset: usize, string: &str) -> Option<(Range<usize>, Range<usize>)> {
     enum State {
         BeforeStart,
         Start(usize),

@@ -9,10 +9,7 @@ mod widget;
 
 mod ui;
 
-fn run<P>(
-    path: P,
-    configuration: configuration::ConfigurationFragment,
-) -> Result<(), String>
+fn run<P>(path: P, configuration: configuration::ConfigurationFragment) -> Result<(), String>
 where
     P: AsRef<path::Path>,
 {
@@ -29,13 +26,9 @@ where
         presentation
             .configuration()
             .map(|c| {
-                Ok::<_, String>(configuration.clone().merge(c.map_err(
-                    |e| {
-                        format!(
-                        "Failed to read configuration from presentation: {e}",
-                    )
-                    },
-                )?))
+                Ok::<_, String>(configuration.clone().merge(c.map_err(|e| {
+                    format!("Failed to read configuration from presentation: {e}",)
+                })?))
             })
             .unwrap_or_else(|| Ok(configuration))?,
     );
@@ -57,17 +50,15 @@ where
     ui::run(path, &configuration, &context, widgets)
 }
 
-/// Initialises the application and returns the root directory and
-/// configuration.
+/// Initialises the application and returns the root directory and configuration.
 ///
 /// # Panics
 /// This function will panic if the current executable name cannot be
 /// determined.
-fn initialize()
--> Result<(path::PathBuf, configuration::ConfigurationFragment), String> {
+fn initialize() -> Result<(path::PathBuf, configuration::ConfigurationFragment), String> {
     let presentation = env::args().nth(1).ok_or_else(usage)?;
-    let configuration = configuration::load()
-        .map_err(|e| format!("Failed to load configuration: {e}"))?;
+    let configuration =
+        configuration::load().map_err(|e| format!("Failed to load configuration: {e}"))?;
     Ok((presentation.into(), configuration))
 }
 
@@ -83,9 +74,7 @@ fn usage() -> String {
 }
 
 fn main() {
-    match initialize().and_then(|(presentation, configuration)| {
-        run(presentation, configuration)
-    }) {
+    match initialize().and_then(|(presentation, configuration)| run(presentation, configuration)) {
         Ok(_) => process::exit(0),
         Err(s) => {
             eprintln!("{s}");

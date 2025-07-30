@@ -60,10 +60,7 @@ impl<'a> PageCollector<'a> {
     /// # Arguments
     /// *  `_configuration` - The application configuration.
     /// *  `iter` - The pages to collect.
-    pub fn collect(
-        _configuration: &'a Configuration,
-        iter: &'a Vec<Page<'a>>,
-    ) -> Self {
+    pub fn collect(_configuration: &'a Configuration, iter: &'a Vec<Page<'a>>) -> Self {
         let mut context = Context::empty();
         let (sections, footnotes) = iter.iter().fold(
             (Vec::new(), Vec::new()),
@@ -97,10 +94,7 @@ impl<'a> PageCollector<'a> {
                         .into_iter()
                         .filter_map(|index| {
                             context.footnotes.lookup(index).map(|sections| {
-                                (
-                                    Footnotes::index_to_superscript(index),
-                                    sections.clone(),
-                                )
+                                (Footnotes::index_to_superscript(index), sections.clone())
                             })
                         })
                         .collect(),
@@ -144,15 +138,10 @@ impl<'a> Widget for &'a FootnoteListing<'a> {
                         .direction(Direction::Horizontal)
                         .margin(0)
                         .constraints(
-                            [
-                                Constraint::Length(margin),
-                                Constraint::Max(area.width),
-                            ]
-                            .as_ref(),
+                            [Constraint::Length(margin), Constraint::Max(area.width)].as_ref(),
                         )
                         .split(rect);
-                    Paragraph::new(Text::from(index.clone()))
-                        .render(layout[0], buf);
+                    Paragraph::new(Text::from(index.clone())).render(layout[0], buf);
                     sections.render(layout[1], buf);
 
                     rect.y += height;
@@ -172,9 +161,7 @@ impl<'a> Sections<'a> {
     pub fn height(&self, width: u16) -> u16 {
         self.iter()
             .enumerate()
-            .map(|(i, section)| {
-                self.height_of(section, width, i == 0, i == self.len() - 1)
-            })
+            .map(|(i, section)| self.height_of(section, width, i == 0, i == self.len() - 1))
             .sum()
     }
 
@@ -185,13 +172,7 @@ impl<'a> Sections<'a> {
     /// *  `width` - The width of the rendering area.
     /// *  `is_first` - Whether this section is the first section.
     /// *  `is_last` - Whether this section is the last section.
-    fn height_of(
-        &self,
-        section: &Section<'a>,
-        width: u16,
-        is_first: bool,
-        is_last: bool,
-    ) -> u16 {
+    fn height_of(&self, section: &Section<'a>, width: u16, is_first: bool, is_last: bool) -> u16 {
         let padding = section.padding();
         section.height(width)
             + if is_first { 0 } else { padding.0 }
@@ -231,8 +212,7 @@ impl<'a> Widget for &'a Sections<'a> {
                 area.height = area.height.saturating_sub(padding.0);
             }
             if !is_last {
-                area.height =
-                    area.height.saturating_sub(padding.1 + self.inner_margin);
+                area.height = area.height.saturating_sub(padding.1 + self.inner_margin);
             }
             section.render(area, buf);
         }
@@ -255,9 +235,7 @@ impl<'a> Section<'a> {
                 content,
                 ordinal,
                 delimiter,
-            } => Self::height_list_item_ordered(
-                width, content, ordinal, delimiter,
-            ),
+            } => Self::height_list_item_ordered(width, content, ordinal, delimiter),
             ListItemUnordered { content, bullet } => {
                 Self::height_list_item_unordered(width, content, bullet)
             }
@@ -269,8 +247,7 @@ impl<'a> Section<'a> {
 
     /// The top and bottom padding for this section.
     ///
-    /// The padding is only used if the section has a neighbour in the
-    /// respective direction.
+    /// The padding is only used if the section has a neighbour in the respective direction.
     pub fn padding(&self) -> (u16, u16) {
         use Section::*;
         match self {
@@ -310,11 +287,7 @@ impl<'a> Section<'a> {
         content.height(width)
     }
 
-    fn height_list_item_unordered(
-        width: u16,
-        content: &Sections<'a>,
-        _bullet: &char,
-    ) -> u16 {
+    fn height_list_item_unordered(width: u16, content: &Sections<'a>, _bullet: &char) -> u16 {
         // The height of a list item is the height of its sections
         content.height(width)
     }
@@ -341,8 +314,7 @@ impl<'a> Section<'a> {
         // between every row and the block frame
         if !rows.is_empty() {
             let height_border = 2;
-            let height_header =
-                rows.iter().find(|row| row.header()).map(|_| 1).unwrap_or(0);
+            let height_header = rows.iter().find(|row| row.header()).map(|_| 1).unwrap_or(0);
             let height_rows = rows
                 .iter()
                 .filter(|row| !row.header())
@@ -402,9 +374,7 @@ impl<'a> Section<'a> {
                         Started(_) if c.is_whitespace() => None,
 
                         // Wrap when we encounter end of line
-                        Started(pos) if state.pos >= width => {
-                            WrappedAt(i as u16 - pos)
-                        }
+                        Started(pos) if state.pos >= width => WrappedAt(i as u16 - pos),
 
                         // Add wrapped word to next line at the end of the
                         // word, unless the next line is empty
@@ -451,21 +421,15 @@ impl<'a> Section<'a> {
     pub fn render(&self, area: Rect, buf: &mut Buffer) {
         use Section::*;
         match &self {
-            BlockQuote { content } => {
-                Self::render_block_quote(area, buf, content)
-            }
+            BlockQuote { content } => Self::render_block_quote(area, buf, content),
             Code { text } => Self::render_code(area, buf, text),
-            Heading { text, level } => {
-                Self::render_heading(area, buf, text, level)
-            }
+            Heading { text, level } => Self::render_heading(area, buf, text, level),
             List { content } => Self::render_list(area, buf, content),
             ListItemOrdered {
                 content,
                 ordinal,
                 delimiter,
-            } => Self::render_list_item_ordered(
-                area, buf, content, ordinal, delimiter,
-            ),
+            } => Self::render_list_item_ordered(area, buf, content, ordinal, delimiter),
             ListItemUnordered { content, bullet } => {
                 Self::render_list_item_unordered(area, buf, content, bullet)
             }
@@ -475,16 +439,10 @@ impl<'a> Section<'a> {
         }
     }
 
-    fn render_block_quote(
-        area: Rect,
-        buf: &mut Buffer,
-        content: &Sections<'a>,
-    ) {
+    fn render_block_quote(area: Rect, buf: &mut Buffer, content: &Sections<'a>) {
         let parts = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(
-                [Constraint::Length(1), Constraint::Max(area.height)].as_ref(),
-            )
+            .constraints([Constraint::Length(1), Constraint::Max(area.height)].as_ref())
             .split(area);
         Paragraph::new("❠").render(parts[0], buf);
         let parts = Layout::default()
@@ -504,21 +462,12 @@ impl<'a> Section<'a> {
         Paragraph::new(text.clone()).render(area, buf);
     }
 
-    fn render_heading(
-        area: Rect,
-        buf: &mut Buffer,
-        text: &[Span<'a>],
-        level: &u8,
-    ) {
+    fn render_heading(area: Rect, buf: &mut Buffer, text: &[Span<'a>], level: &u8) {
         Paragraph::new({
             let mut text = text.to_vec();
             text.insert(
                 0,
-                Span::raw(
-                    std::iter::repeat_n('#', *level as usize)
-                        .collect::<String>()
-                        + " ",
-                ),
+                Span::raw(std::iter::repeat_n('#', *level as usize).collect::<String>() + " "),
             );
             Line::from(text)
         })
@@ -600,10 +549,10 @@ impl<'a> Section<'a> {
         .block(Block::default().borders(Borders::ALL))
         .column_spacing(1);
         if let Some(header_row) = rows.iter().find(|row| row.header()) {
-            table = table
-                .header(Row::new(header_row.cells().iter().cloned()).style(
-                    Style::default().add_modifier(Modifier::UNDERLINED),
-                ));
+            table = table.header(
+                Row::new(header_row.cells().iter().cloned())
+                    .style(Style::default().add_modifier(Modifier::UNDERLINED)),
+            );
         }
 
         table.render(area, buf);

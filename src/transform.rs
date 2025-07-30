@@ -6,9 +6,7 @@ use comrak::arena_tree::Node;
 use comrak::nodes::{Ast, ListDelimType, ListType, NodeValue};
 
 use syntect::easy::HighlightLines;
-use syntect::highlighting::{
-    Color as SyntectColor, FontStyle, Theme, ThemeSet,
-};
+use syntect::highlighting::{Color as SyntectColor, FontStyle, Theme, ThemeSet};
 use syntect::parsing::SyntaxSet;
 use syntect::util::LinesWithEndings;
 
@@ -48,9 +46,7 @@ impl<'a> Sections<'a> {
     fn list_item_reorder(&mut self, start_at: usize) {
         self.sections
             .iter_mut()
-            .filter(|section| {
-                matches!(section, Section::ListItemOrdered { .. })
-            })
+            .filter(|section| matches!(section, Section::ListItemOrdered { .. }))
             .enumerate()
             .for_each(|(i, mut section)| {
                 if let Section::ListItemOrdered { ordinal, .. } = &mut section {
@@ -189,8 +185,7 @@ pub struct Footnotes<'a> {
 
 impl<'a> Footnotes<'a> {
     /// The characters used for numeric superscript.
-    const SUPERSCRIPTS: [char; 10] =
-        ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
+    const SUPERSCRIPTS: [char; 10] = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
 
     /// Adds a footnote reference.
     ///
@@ -377,14 +372,10 @@ fn section<'a>(
                                 if style.font_style.contains(FontStyle::BOLD) {
                                     s = s.add_modifier(Modifier::BOLD);
                                 }
-                                if style.font_style.contains(FontStyle::ITALIC)
-                                {
+                                if style.font_style.contains(FontStyle::ITALIC) {
                                     s = s.add_modifier(Modifier::ITALIC);
                                 }
-                                if style
-                                    .font_style
-                                    .contains(FontStyle::UNDERLINE)
-                                {
+                                if style.font_style.contains(FontStyle::UNDERLINE) {
                                     s = s.add_modifier(Modifier::UNDERLINED);
                                 }
 
@@ -455,9 +446,7 @@ fn section<'a>(
         }
 
         NodeValue::Paragraph => {
-            let text =
-                Line::from(root_inlines(context, source.children(), style))
-                    .into();
+            let text = Line::from(root_inlines(context, source.children(), style)).into();
             target.push(Section::Paragraph { text });
         }
 
@@ -474,9 +463,7 @@ fn section<'a>(
                     None
                 }
             }) {
-                let text =
-                    Line::from(root_inlines(context, source.children(), style))
-                        .into();
+                let text = Line::from(root_inlines(context, source.children(), style)).into();
                 row.push(text);
             }
         }
@@ -583,8 +570,7 @@ fn inline<'a>(
 
         FootnoteReference(footnote) => {
             let index = context.footnotes.reference(&footnote.name);
-            target
-                .push(Footnotes::index_to_superscript(index).to_string().into())
+            target.push(Footnotes::index_to_superscript(index).to_string().into())
         }
 
         LineBreak => {
@@ -604,12 +590,7 @@ fn inline<'a>(
         SoftBreak => target.push(Span::raw(" ")),
 
         Strong => {
-            inlines(
-                context,
-                source,
-                target,
-                style.add_modifier(Modifier::BOLD),
-            );
+            inlines(context, source, target, style.add_modifier(Modifier::BOLD));
         }
 
         Strikethrough => {

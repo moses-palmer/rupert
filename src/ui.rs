@@ -47,9 +47,7 @@ where
             .map(|_| ())
             .or_else(|_| terminal.0.clear())
             .map_err(|e| format!("Failed to render TUI: {e}"));
-        if let Event::Key(key) =
-            event::read().map_err(|e| format!("Failed to read event: {e}"))?
-        {
+        if let Event::Key(key) = event::read().map_err(|e| format!("Failed to read event: {e}"))? {
             match key.code {
                 KeyCode::Left | KeyCode::Backspace => {
                     page = page.saturating_sub(1);
@@ -102,10 +100,7 @@ fn render(
     let main_layout = Layout::default()
         .direction(Direction::Vertical)
         .margin(0)
-        .constraints(
-            [Constraint::Length(area.height - 3), Constraint::Length(1)]
-                .as_ref(),
-        )
+        .constraints([Constraint::Length(area.height - 3), Constraint::Length(1)].as_ref())
         .split(content_rect);
 
     frame.render_widget(presentation_window, area);
