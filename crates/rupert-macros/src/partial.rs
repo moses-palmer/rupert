@@ -3,10 +3,13 @@ use quote::{quote, ToTokens};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::{
-    parse_macro_input, parse_quote, AngleBracketedGenericArguments, Attribute,
-    GenericArgument, Ident, ItemStruct, Path, PathArguments, PathSegment,
-    Token, Type, TypePath, VisPublic, Visibility,
+    parse_macro_input, AngleBracketedGenericArguments, Attribute,
+    GenericArgument, Ident, ItemStruct, Meta, Path, PathArguments, PathSegment,
+    Token, Type, TypePath, Visibility,
 };
+
+/// The name of the attribute providing derives for a struct.
+const DERIVE_ATTR: &str = "derive";
 
 /// The name of the attribute providing the partial struct name.
 const PARTIAL_STRUCT_ATTR: &str = "partial_struct";
@@ -61,24 +64,24 @@ impl Partial {
                 field
                     .attrs
                     .iter()
-                    .filter(|attr| attr.path.is_ident(&partial_struct_attr))
-                    .next()
-                    .map(|attr| {
-                        syn::parse_str(&attr.tokens.to_string()).unwrap()
+                    .filter(|attr| attr.path().is_ident(&partial_struct_attr))
+                    .filter_map(|attr| match &attr.meta {
+                        Meta::List(v) => Some(v.tokens.clone()),
+                        _ => None,
                     })
+                    .next()
+                    .map(|tokens| syn::parse_str(&tokens.to_string()).unwrap())
                     .unwrap_or_else(|| field.ty),
             );
 
             // Strip default value attributes
             field.attrs.retain(|attr| {
-                !(attr.path.is_ident(&partial_default_attr)
-                    || attr.path.is_ident(&partial_struct_attr))
+                !(attr.path().is_ident(&partial_default_attr)
+                    || attr.path().is_ident(&partial_struct_attr))
             });
 
             // Ensure all fields are public
-            field.vis = Visibility::Public(VisPublic {
-                pub_token: <Token![pub]>::default(),
-            });
+            field.vis = Visibility::Public(Default::default());
 
             field
         });
@@ -171,11 +174,19 @@ impl Partial {
         self.struct_definition
             .attrs
             .iter()
-            .filter(|attr| attr.path.is_ident(&name_attr))
+            .filter(|attr| attr.path().is_ident(&name_attr))
+            .filter_map(|attr| match &attr.meta {
+                Meta::List(v) => Some(v.tokens.clone()),
+                _ => None,
+            })
             .next()
-            .map(|attr| {
+            .map(|tokens| {
                 Ident::new(
-                    &unparenthesize(&attr.tokens.to_string()),
+                    &tokens
+                        .into_iter()
+                        .next()
+                        .expect("a partial name")
+                        .to_string(),
                     self.struct_definition.ident.span(),
                 )
             })
@@ -195,9 +206,20 @@ impl Partial {
         self.struct_definition
             .attrs
             .iter()
-            .filter(|attr| attr.path.is_ident(&name_attr))
-            .flat_map(|attr| attr.tokens.clone().into_iter())
-            .map(|attr| parse_quote! { #[derive #attr ] })
+            .filter(|attr| attr.path().is_ident(&name_attr))
+            .map(|attr| {
+                let mut attr = attr.clone();
+                attr.meta = match attr.meta {
+                    Meta::List(mut v) => {
+                        v.path =
+                            Ident::new(DERIVE_ATTR, Span::call_site().into())
+                                .into();
+                        Meta::List(v)
+                    }
+                    v => v,
+                };
+                attr
+            })
             .collect()
     }
 
@@ -233,9 +255,12 @@ impl Partial {
                 field
                     .attrs
                     .iter()
-                    .filter(|attr| attr.path.is_ident(attr_ident))
+                    .filter(|attr| attr.path().is_ident(attr_ident))
+                    .flat_map(|attr| match &attr.meta {
+                        Meta::List(v) => Some(v.tokens.clone()),
+                        _ => None,
+                    })
                     .next()
-                    .map(|attr| attr.tokens.clone())
                     .unwrap_or_else(|| "Default::default()".parse().unwrap())
             })
             .collect()
@@ -275,13 +300,4 @@ fn wrap(wrapper: Ident, ty: Type) -> Type {
             }]),
         },
     })
-}
-
-fn unparenthesize(string: &String) -> String {
-    let mut characters = string.chars();
-    if characters.next() == Some('(') && characters.last() == Some(')') {
-        string[1..string.len() - 1].into()
-    } else {
-        String::new()
-    }
 }
