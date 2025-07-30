@@ -76,7 +76,7 @@ fn render(
     frame: &mut Frame<CrosstermBackend<io::Stdout>>,
     configuration: &Configuration,
     context: &Context,
-    widgets: &Vec<PageWidget<'_>>,
+    widgets: &[PageWidget<'_>],
     page: usize,
 ) {
     let size = frame.size();

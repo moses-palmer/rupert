@@ -48,9 +48,8 @@ impl<'a> Sections<'a> {
     fn list_item_reorder(&mut self, start_at: usize) {
         self.sections
             .iter_mut()
-            .filter(|section| match &section {
-                Section::ListItemOrdered { .. } => true,
-                _ => false,
+            .filter(|section| {
+                matches!(section, Section::ListItemOrdered { .. })
             })
             .enumerate()
             .for_each(|(i, mut section)| {
