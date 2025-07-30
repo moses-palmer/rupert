@@ -54,9 +54,9 @@ impl<'a> Sections<'a> {
             })
             .enumerate()
             .for_each(|(i, mut section)| match &mut section {
-                Section::ListItemOrdered {
-                    ref mut ordinal, ..
-                } => *ordinal = start_at + i,
+                Section::ListItemOrdered { ordinal, .. } => {
+                    *ordinal = start_at + i
+                }
                 _ => {}
             });
     }
