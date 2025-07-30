@@ -6,14 +6,14 @@ use crossterm::execute;
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use tui::backend::CrosstermBackend;
 
+use tui::Frame;
 use tui::layout::{Alignment, Constraint, Direction, Layout};
 use tui::style::{Color, Style};
 use tui::text::Text;
 use tui::widgets::{Block, BorderType, Borders, Paragraph};
-use tui::Frame;
 
 use crate::configuration::Configuration;
-use crate::transform::{color, Context};
+use crate::transform::{Context, color};
 use crate::widget::PageWidget;
 
 /// Runs the UI main loop.
@@ -46,15 +46,13 @@ where
             .draw(|frame| render(frame, configuration, context, &pages, page))
             .map(|_| ())
             .or_else(|_| terminal.0.clear())
-            .map_err(|e| format!("Failed to render TUI: {}", e));
+            .map_err(|e| format!("Failed to render TUI: {e}"));
         if let Event::Key(key) =
-            event::read().map_err(|e| format!("Failed to read event: {}", e))?
+            event::read().map_err(|e| format!("Failed to read event: {e}"))?
         {
             match key.code {
                 KeyCode::Left | KeyCode::Backspace => {
-                    if page > 0 {
-                        page -= 1;
-                    }
+                    page = page.saturating_sub(1);
                 }
                 KeyCode::Right | KeyCode::Enter => {
                     if page < pages.len() - 1 {
@@ -124,16 +122,16 @@ struct Terminal(pub tui::Terminal<CrosstermBackend<io::Stdout>>);
 impl Terminal {
     pub fn new() -> Result<Self, String> {
         crossterm::terminal::enable_raw_mode()
-            .map_err(|e| format!("Failed to initialise terminal: {}", e))?;
+            .map_err(|e| format!("Failed to initialise terminal: {e}"))?;
 
         let mut stdout = std::io::stdout();
         execute!(stdout, EnterAlternateScreen)
-            .map_err(|e| format!("Failed to initialise terminal: {}", e))?;
+            .map_err(|e| format!("Failed to initialise terminal: {e}"))?;
 
         let backend = CrosstermBackend::new(stdout);
 
         tui::Terminal::new(backend)
-            .map_err(|e| format!("Failed to initialise terminal: {}", e))
+            .map_err(|e| format!("Failed to initialise terminal: {e}"))
             .map(Self)
     }
 }

@@ -3,11 +3,10 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
+use comrak::Arena;
 use comrak::arena_tree::Node;
 use comrak::nodes::{Ast, NodeValue};
-use comrak::Arena;
 use serde::{Deserialize, Serialize};
-use toml;
 
 use crate::configuration::ConfigurationFragment;
 
@@ -69,7 +68,7 @@ impl<'a> Presentation<'a> {
                     &s[FRONT_MATTER_DELIMITER.len()
                         ..s.len() - FRONT_MATTER_DELIMITER.len() - 1],
                 )
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+                .map_err(io::Error::other)
             })
     }
 
@@ -100,7 +99,7 @@ impl<'a> From<Vec<&'a Node<'a, RefCell<Ast>>>> for Page<'a> {
 
 impl<'a> Page<'a> {
     /// An iterator over the AST nodes of this page.
-    pub fn nodes(&'a self) -> impl Iterator<Item = &Node<RefCell<Ast>>> {
+    pub fn nodes(&'a self) -> impl Iterator<Item = &'a Node<'a, RefCell<Ast>>> {
         self.nodes.iter().cloned()
     }
 }
@@ -177,8 +176,7 @@ impl<'a> Iterator for PageIterator<'a> {
 
             nodes.push(current);
             if let Some(next_sibling) = current.next_sibling() {
-                if let Some(next) =
-                    self.break_condition.try_break(&next_sibling)
+                if let Some(next) = self.break_condition.try_break(next_sibling)
                 {
                     break Some(next);
                 } else {

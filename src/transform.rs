@@ -53,11 +53,10 @@ impl<'a> Sections<'a> {
                 _ => false,
             })
             .enumerate()
-            .for_each(|(i, mut section)| match &mut section {
-                Section::ListItemOrdered { ordinal, .. } => {
+            .for_each(|(i, mut section)| {
+                if let Section::ListItemOrdered { ordinal, .. } = &mut section {
                     *ordinal = start_at + i
                 }
-                _ => {}
             });
     }
 }
@@ -180,7 +179,7 @@ impl<'a> Context<'a> {
 }
 
 /// A list of footnotes.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Footnotes<'a> {
     /// A set of references for the current page.
     references: HashSet<String>,
@@ -263,15 +262,6 @@ impl<'a> Footnotes<'a> {
             result.insert(0, Self::SUPERSCRIPTS[i]);
         }
         result.iter().collect()
-    }
-}
-
-impl<'a> Default for Footnotes<'a> {
-    fn default() -> Self {
-        Self {
-            references: HashSet::new(),
-            data: Vec::new(),
-        }
     }
 }
 
@@ -439,8 +429,7 @@ fn section<'a>(
                 context,
                 source.children(),
                 style.add_modifier(Modifier::UNDERLINED),
-            ))
-            .into();
+            ));
             let level = heading.level as u8;
             target.push(Section::Heading { text, level });
         }
@@ -609,9 +598,8 @@ fn inline<'a>(
         FootnoteReference(footnote) => {
             let name = String::from_utf8_lossy(footnote);
             let index = context.footnotes.reference(&name);
-            target.push(
-                format!("{}", Footnotes::index_to_superscript(index)).into(),
-            )
+            target
+                .push(Footnotes::index_to_superscript(index).to_string().into())
         }
 
         LineBreak => {

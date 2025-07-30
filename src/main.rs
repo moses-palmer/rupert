@@ -32,8 +32,7 @@ where
                 Ok::<_, String>(configuration.clone().merge(c.map_err(
                     |e| {
                         format!(
-                        "Failed to read configuration from presentation: {}",
-                        e,
+                        "Failed to read configuration from presentation: {e}",
                     )
                     },
                 )?))
@@ -45,8 +44,8 @@ where
         .pages(configuration.page_break.clone())
         .collect::<Vec<_>>())
     .and_then(|pages| {
-        if pages.len() < 1 {
-            Err(format!("Invalid presentation: no pages"))
+        if pages.is_empty() {
+            Err("Invalid presentation: no pages".to_string())
         } else {
             Ok(pages)
         }
@@ -64,11 +63,11 @@ where
 /// # Panics
 /// This function will panic if the current executable name cannot be
 /// determined.
-fn initialize(
-) -> Result<(path::PathBuf, configuration::ConfigurationFragment), String> {
-    let presentation = env::args().skip(1).next().ok_or_else(usage)?;
+fn initialize()
+-> Result<(path::PathBuf, configuration::ConfigurationFragment), String> {
+    let presentation = env::args().nth(1).ok_or_else(usage)?;
     let configuration = configuration::load()
-        .map_err(|e| format!("Failed to load configuration: {}", e))?;
+        .map_err(|e| format!("Failed to load configuration: {e}"))?;
     Ok((presentation.into(), configuration))
 }
 
@@ -80,7 +79,7 @@ fn usage() -> String {
     let name = env::current_exe()
         .map(|exe| exe.to_string_lossy().into_owned())
         .unwrap();
-    format!("Usage: {} PRESENTATION", name)
+    format!("Usage: {name} PRESENTATION")
 }
 
 fn main() {
@@ -89,7 +88,7 @@ fn main() {
     }) {
         Ok(_) => process::exit(0),
         Err(s) => {
-            eprintln!("{}", s);
+            eprintln!("{s}");
             process::exit(1);
         }
     }
