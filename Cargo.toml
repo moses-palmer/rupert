@@ -9,7 +9,7 @@ edition = "2024"
 crossterm = "0.25"
 serde = { version = "1", features = ["derive"] }
 syntect = "5.2"
-toml = "0.5"
+toml = "0.9"
 tui = "0.19"
 rupert-macros = { path = "crates/rupert-macros" }
 
