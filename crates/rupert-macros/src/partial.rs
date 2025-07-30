@@ -3,9 +3,8 @@ use quote::{quote, ToTokens};
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::{
-    parse_macro_input, AngleBracketedGenericArguments, Attribute,
-    GenericArgument, Ident, ItemStruct, Meta, Path, PathArguments, PathSegment,
-    Token, Type, TypePath, Visibility,
+    parse_macro_input, AngleBracketedGenericArguments, Attribute, GenericArgument, Ident,
+    ItemStruct, Meta, Path, PathArguments, PathSegment, Token, Type, TypePath, Visibility,
 };
 
 /// The name of the attribute providing derives for a struct.
@@ -51,10 +50,8 @@ impl Partial {
         // Add derives
         let derives = self.partial_derive();
 
-        let partial_default_attr =
-            Ident::new(PARTIAL_DEFAULT_ATTR, Span::call_site().into());
-        let partial_struct_attr =
-            Ident::new(PARTIAL_STRUCT_ATTR, Span::call_site().into());
+        let partial_default_attr = Ident::new(PARTIAL_DEFAULT_ATTR, Span::call_site().into());
+        let partial_struct_attr = Ident::new(PARTIAL_STRUCT_ATTR, Span::call_site().into());
         let fields = self.struct_definition.fields.iter().map(|field| {
             let mut field = field.clone();
 
@@ -102,10 +99,8 @@ impl Partial {
         let target_struct = self.struct_name();
         let name = self.partial_name()?;
         let field_names = self.field_names()?;
-        let field_values = self.field_values(&Ident::new(
-            PARTIAL_DEFAULT_ATTR,
-            Span::call_site().into(),
-        ));
+        let field_values =
+            self.field_values(&Ident::new(PARTIAL_DEFAULT_ATTR, Span::call_site().into()));
 
         let (i, g, w) = self.struct_definition.generics.split_for_impl();
         Ok(quote! {
@@ -113,8 +108,7 @@ impl Partial {
                 /// Merges this partial struct with another one.
                 ///
                 /// # Arguments
-                /// *  `other` - The other struct. Values present in this item
-                ///    take precendence.
+                /// *  `other` - The other struct. Values present in this item take precendence.
                 pub fn merge(self, other: Self) -> Self {
                     Self {
                         #(
@@ -169,8 +163,7 @@ impl Partial {
 
     /// The name of the partial struct.
     fn partial_name(&self) -> Result<Ident, String> {
-        let name_attr =
-            Ident::new(PARTIAL_STRUCT_ATTR, Span::call_site().into());
+        let name_attr = Ident::new(PARTIAL_STRUCT_ATTR, Span::call_site().into());
         self.struct_definition
             .attrs
             .iter()
@@ -201,8 +194,7 @@ impl Partial {
 
     /// The list of derive attributes to apply to the partial struct.
     fn partial_derive(&self) -> Vec<Attribute> {
-        let name_attr =
-            Ident::new(PARTIAL_DERIVE_ATTR, Span::call_site().into());
+        let name_attr = Ident::new(PARTIAL_DERIVE_ATTR, Span::call_site().into());
         self.struct_definition
             .attrs
             .iter()
@@ -211,9 +203,7 @@ impl Partial {
                 let mut attr = attr.clone();
                 attr.meta = match attr.meta {
                     Meta::List(mut v) => {
-                        v.path =
-                            Ident::new(DERIVE_ATTR, Span::call_site().into())
-                                .into();
+                        v.path = Ident::new(DERIVE_ATTR, Span::call_site().into()).into();
                         Meta::List(v)
                     }
                     v => v,
@@ -241,12 +231,11 @@ impl Partial {
 
     /// The default values for the field values.
     ///
-    /// If the attribute `attr_ident` is present, its tokens will be used as
-    /// the default values, otherwise `Default::default()` is used.
+    /// If the attribute `attr_ident` is present, its tokens will be used as the default values,
+    /// otherwise `Default::default()` is used.
     ///
     /// # Arguments
-    /// *  `attr_ident` - The identifier for the attribute containing a default
-    ///    value.
+    /// *  `attr_ident` - The identifier for the attribute containing a default value.
     fn field_values(&self, attr_ident: &Ident) -> Vec<impl ToTokens> {
         self.struct_definition
             .fields
@@ -287,16 +276,12 @@ fn wrap(wrapper: Ident, ty: Type) -> Type {
             leading_colon: None,
             segments: Punctuated::from_iter([PathSegment {
                 ident: wrapper,
-                arguments: PathArguments::AngleBracketed(
-                    AngleBracketedGenericArguments {
-                        colon2_token: None,
-                        lt_token: <Token![<]>::default(),
-                        gt_token: <Token![>]>::default(),
-                        args: Punctuated::from_iter([GenericArgument::Type(
-                            ty,
-                        )]),
-                    },
-                ),
+                arguments: PathArguments::AngleBracketed(AngleBracketedGenericArguments {
+                    colon2_token: None,
+                    lt_token: <Token![<]>::default(),
+                    gt_token: <Token![>]>::default(),
+                    args: Punctuated::from_iter([GenericArgument::Type(ty)]),
+                }),
             }]),
         },
     })

@@ -52,8 +52,7 @@ where
 impl<'a> Presentation<'a> {
     /// Attempts to load a configuration fragment from the presentation file.
     ///
-    /// The configuration is specified as front matter, with `"%%%"` as
-    /// delimiter. Only
+    /// The configuration is specified as front matter, with `"%%%"` as delimiter. Only
     pub fn configuration(&self) -> Option<io::Result<ConfigurationFragment>> {
         self.root
             .children()
@@ -65,11 +64,7 @@ impl<'a> Presentation<'a> {
                             data.find(FRONT_MATTER_DELIMITER),
                             data.rfind(FRONT_MATTER_DELIMITER),
                         ) {
-                            Some((
-                                data,
-                                start + FRONT_MATTER_DELIMITER.len(),
-                                end,
-                            ))
+                            Some((data, start + FRONT_MATTER_DELIMITER.len(), end))
                         } else {
                             None
                         }
@@ -79,20 +74,14 @@ impl<'a> Presentation<'a> {
                 }
                 _ => None,
             })
-            .map(|(s, start, end)| {
-                toml::from_str(&s[start..end]).map_err(io::Error::other)
-            })
+            .map(|(s, start, end)| toml::from_str(&s[start..end]).map_err(io::Error::other))
     }
 
     /// The pages of this presentation.
     ///
     /// # Arguments
-    /// *  `break_condition` - The break condition for breaking the full
-    ///    document into pages.
-    pub fn pages(
-        &self,
-        break_condition: PageBreakCondition,
-    ) -> impl Iterator<Item = Page<'a>> {
+    /// *  `break_condition` - The break condition for breaking the full document into pages.
+    pub fn pages(&self, break_condition: PageBreakCondition) -> impl Iterator<Item = Page<'a>> {
         PageIterator::new(self, break_condition)
     }
 }
@@ -163,10 +152,7 @@ struct PageIterator<'a> {
 }
 
 impl<'a> PageIterator<'a> {
-    pub fn new(
-        presentation: &Presentation<'a>,
-        break_condition: PageBreakCondition,
-    ) -> Self {
+    pub fn new(presentation: &Presentation<'a>, break_condition: PageBreakCondition) -> Self {
         Self {
             next: presentation.root.first_child(),
             break_condition,
@@ -188,8 +174,7 @@ impl<'a> Iterator for PageIterator<'a> {
 
             nodes.push(current);
             if let Some(next_sibling) = current.next_sibling() {
-                if let Some(next) = self.break_condition.try_break(next_sibling)
-                {
+                if let Some(next) = self.break_condition.try_break(next_sibling) {
                     break Some(next);
                 } else {
                     current = next_sibling;
@@ -227,8 +212,7 @@ mod tests {
     #[test]
     fn pages() {
         let mut arena = comrak::Arena::new();
-        let presentation =
-            load(&mut arena, "test-resources/presentation.md").unwrap();
+        let presentation = load(&mut arena, "test-resources/presentation.md").unwrap();
 
         let pages = presentation
             .pages(PageBreakCondition::Heading { level: 1 })
