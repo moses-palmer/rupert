@@ -58,17 +58,29 @@ impl<'a> Presentation<'a> {
         self.root
             .children()
             .find_map(|node| match &node.data.borrow().value {
-                NodeValue::FrontMatter(data) => String::from_utf8(data.clone())
-                    .ok()
-                    .filter(|s| s.len() > 2 * FRONT_MATTER_DELIMITER.len()),
+                NodeValue::FrontMatter(data) => {
+                    if data.len() > 2 * FRONT_MATTER_DELIMITER.len() {
+                        let data = data.clone();
+                        if let (Some(start), Some(end)) = (
+                            data.find(FRONT_MATTER_DELIMITER),
+                            data.rfind(FRONT_MATTER_DELIMITER),
+                        ) {
+                            Some((
+                                data,
+                                start + FRONT_MATTER_DELIMITER.len(),
+                                end,
+                            ))
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                }
                 _ => None,
             })
-            .map(|s| {
-                toml::from_str(
-                    &s[FRONT_MATTER_DELIMITER.len()
-                        ..s.len() - FRONT_MATTER_DELIMITER.len() - 1],
-                )
-                .map_err(io::Error::other)
+            .map(|(s, start, end)| {
+                toml::from_str(&s[start..end]).map_err(io::Error::other)
             })
     }
 
@@ -114,7 +126,7 @@ pub enum PageBreakCondition {
     /// Break on headings.
     Heading {
         /// The heading level.
-        level: u32,
+        level: u8,
     },
 }
 
@@ -223,7 +235,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(2, pages.len());
-        assert_eq!(1, pages[0].nodes[0].data.borrow().start_line);
-        assert_eq!(6, pages[1].nodes[0].data.borrow().start_line);
+        assert_eq!(1, pages[0].nodes[0].data.borrow().sourcepos.start.line);
+        assert_eq!(6, pages[1].nodes[0].data.borrow().sourcepos.start.line);
     }
 }

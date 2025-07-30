@@ -362,9 +362,9 @@ fn section<'a>(
         NodeValue::CodeBlock(code) => {
             let syntax = context
                 .syntax_set
-                .find_syntax_by_token(&String::from_utf8_lossy(&code.info))
+                .find_syntax_by_token(&code.info)
                 .unwrap_or_else(|| context.syntax_set.find_syntax_plain_text());
-            let text = String::from_utf8_lossy(&code.literal).into_owned();
+            let text = code.literal.to_owned();
             let mut h = HighlightLines::new(syntax, &context.theme);
             let lines = LinesWithEndings::from(&text)
                 .map(|line| {
@@ -411,7 +411,6 @@ fn section<'a>(
         NodeValue::FrontMatter(_) => {}
 
         NodeValue::FootnoteDefinition(footnote) => {
-            let name = String::from_utf8_lossy(footnote);
             let mut content = Vec::new();
             sections(
                 context,
@@ -420,7 +419,7 @@ fn section<'a>(
                 style.add_modifier(Modifier::DIM),
             );
             let content = content.into();
-            context.footnotes.definition(&name, content);
+            context.footnotes.definition(&footnote.name, content);
         }
 
         NodeValue::Heading(heading) => {
@@ -509,7 +508,7 @@ fn section<'a>(
         | NodeValue::DescriptionTerm => {
             unimplemented!(
                 "Description lists are not supported, but found on line {}",
-                source.data.borrow().start_line,
+                source.data.borrow().sourcepos.start.line,
             )
         }
 
@@ -518,14 +517,14 @@ fn section<'a>(
             unimplemented!(
                 "The element {:?} on line {} is not supported.",
                 node,
-                source.data.borrow().start_line
+                source.data.borrow().sourcepos.start.line
             )
         }
 
         _ => unimplemented!(
             "{:?} was unexpected on line {}",
             node,
-            source.data.borrow().start_line,
+            source.data.borrow().sourcepos.start.line,
         ),
     }
 }
@@ -581,9 +580,7 @@ fn inline<'a>(
     use NodeValue::*;
     let node = &source.data.borrow().value;
     match node {
-        Code(code) => target.push(Span::raw(
-            String::from_utf8_lossy(&code.literal).into_owned(),
-        )),
+        Code(code) => target.push(Span::raw(code.literal.to_owned())),
 
         Emph => {
             inlines(
@@ -595,8 +592,7 @@ fn inline<'a>(
         }
 
         FootnoteReference(footnote) => {
-            let name = String::from_utf8_lossy(footnote);
-            let index = context.footnotes.reference(&name);
+            let index = context.footnotes.reference(&footnote.name);
             target
                 .push(Footnotes::index_to_superscript(index).to_string().into())
         }
@@ -612,10 +608,7 @@ fn inline<'a>(
                 target,
                 style.add_modifier(Modifier::UNDERLINED).fg(Color::Blue),
             );
-            target.push(Span::styled(
-                format!(" <{}>", String::from_utf8_lossy(&link.url)),
-                style,
-            ));
+            target.push(Span::styled(format!(" <{}>", link.url), style));
         }
 
         SoftBreak => target.push(Span::raw(" ")),
@@ -639,17 +632,14 @@ fn inline<'a>(
         }
 
         Text(text) => {
-            target.push(Span::styled(
-                String::from_utf8_lossy(text).into_owned(),
-                style,
-            ));
+            target.push(Span::styled(text.to_owned(), style));
         }
 
         // TODO: Enable superscript and handle it
         Superscript => {
             unimplemented!(
                 "Superscript is are not supported, but found on line {}",
-                source.data.borrow().start_line,
+                source.data.borrow().sourcepos.start.line,
             )
         }
 
@@ -657,7 +647,7 @@ fn inline<'a>(
         TaskItem(_) => {
             unimplemented!(
                 "Task item lists are not supported, but found on line {}",
-                source.data.borrow().start_line,
+                source.data.borrow().sourcepos.start.line,
             )
         }
 
@@ -666,14 +656,14 @@ fn inline<'a>(
             unimplemented!(
                 "The element {:?} on line {} is not supported.",
                 node,
-                source.data.borrow().start_line
+                source.data.borrow().sourcepos.start.line
             )
         }
 
         _ => unimplemented!(
             "{:?} was unexpected on line {}",
             node,
-            source.data.borrow().start_line,
+            source.data.borrow().sourcepos.start.line,
         ),
     }
 }
