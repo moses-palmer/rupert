@@ -37,7 +37,7 @@ where
     let mut terminal = Terminal::new()?;
     let mut page = 0usize;
 
-    configuration.commands.initialize(&path);
+    configuration.commands.initialize(&path, configuration);
 
     #[allow(unused_must_use)]
     loop {
