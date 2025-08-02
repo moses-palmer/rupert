@@ -48,11 +48,14 @@ impl Commands {
     ///
     /// # Arguments
     /// *  `path` - The path to the presentation.
-    pub fn initialize<P>(&self, path: P)
+    pub fn initialize<P>(&self, path: P, configuration: &Configuration)
     where
         P: AsRef<Path>,
     {
-        self.dispatch(&path, &self.initialize, |_| None)
+        self.dispatch(&path, &self.initialize, |key| match key {
+            "presentation.title" => Some(&configuration.title),
+            _ => None,
+        })
     }
 
     /// Calls the `update` command.

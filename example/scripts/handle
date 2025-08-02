@@ -1,0 +1,192 @@
+#!/bin/sh
+
+set -eu
+
+##
+# The current stage.
+STAGE="$1"
+shift
+
+##
+# The full path to the presentation markdown file.
+PRESENTATION_PATH_MD="$1"
+shift
+
+##
+# The directory containing the presentation.
+PRESENTATION_DIR="$(pwd)"
+
+##
+# The runtime path containing temporary files.
+RUNTIME_PATH="$PRESENTATION_DIR/.runtime"
+
+##
+# The directory containing command files for various pages.
+COMMAND_DIR="$PRESENTATION_DIR/page-commands"
+
+##
+# The full path to the presentation PDF file.
+PRESENTATION_PATH_BASE="$(basename "$PRESENTATION_PATH_MD")"
+PRESENTATION_PATH_PDF="$RUNTIME_PATH/${PRESENTATION_PATH_BASE%.md}.pdf"
+
+##
+# The pipe used to control the vim instance.
+VIM_PIPE="$RUNTIME_PATH/vim.pipe"
+
+##
+# The pipe used to control the PDF viewer.
+PDF_VIEWER_PIPE="$RUNTIME_PATH/pdf-viewer.fifo"
+
+##
+# The file containing the tmux pane ID for the shell pane.
+SHELL_PANE_ID_PATH="$RUNTIME_PATH/shell.pane-id"
+
+
+initialize() {
+    tmux rename-window "$1"
+
+    # Make sure that we have a graphical presentation
+    rm -rf "$RUNTIME_PATH"
+    mkdir -p "$RUNTIME_PATH"
+    make .runtime/presentation.pdf
+
+    # Launch vim, the external PDF viewer and a shell pane
+    vim_start
+    pdf_viewer_start "$PRESENTATION_PATH_PDF"
+    shell_start
+    while ! ( [ -p "$VIM_PIPE" ] && [ -p "$PDF_VIEWER_PIPE" ] ); do
+        sleep 1
+    done
+}
+
+
+update() {
+    # Synchronise the external PDF viewer
+    pdf_viewer_set_page "$1"
+
+    # Check out the corresponding tag, if present
+    if [ -n "$(git tag --list "page/$1")" ]; then
+        git checkout "page/$1" >/dev/null 2>&1
+        vim_reload
+    fi
+
+    if [ -f "$COMMAND_DIR/$1.vim" ]; then
+        vim_command "$(cat "$COMMAND_DIR/$1.vim")"
+    fi
+}
+
+
+finalize() {
+    vim_quit
+    pdf_viewer_quit
+    shell_quit
+    rm -rf "$RUNTIME_PATH"
+}
+
+
+##
+# Launches vim or neovim in a separate tmux pane.
+vim_start() {
+    if command -v nvim >/dev/null; then
+        VIM="nvim"
+    else
+        VIM="vim"
+    fi
+
+    # Launch vim with remote control in a new pane
+    mkfifo "$VIM_PIPE"
+    tmux split-window \
+        -h \
+        -b \
+        -c "$(readlink -f "$(pwd)/..")" \
+        $VIM +"source example/scripts/server.vim | call server#start('$VIM_PIPE')"
+
+}
+
+##
+# Executes a command in the remote controlled vim instance.
+#
+# Arguments:
+# $1: The command to execute.
+vim_command() {
+    echo "$1" >> "$VIM_PIPE"
+}
+
+##
+# Makes the vim instance reload all documents.
+vim_reload() {
+    vim_command ":ea"
+}
+
+##
+# Quits vim.
+vim_quit() {
+    vim_command ":qa!"
+}
+
+
+##
+# Launches the external PDF viewer.
+#
+# Arguments:
+# $1: The path to the PDF.
+pdf_viewer_start() {
+    mkfifo "$PDF_VIEWER_PIPE"
+    ./scripts/pdf-viewer --fullscreen "$1" "$PDF_VIEWER_PIPE" >/dev/null 2>&1 &
+}
+
+##
+# Sends a command to the remove PDF viewer.
+#
+# Arguments:
+# $1: The command to execute.
+pdf_viewer_command() {
+    echo "$1" >> "$PDF_VIEWER_PIPE"
+}
+
+##
+# Displays a certain page in the PDF viewer.
+#
+# Arguments:
+# $1: The page number to set.
+pdf_viewer_set_page() {
+    pdf_viewer_command "set-page:$1"
+}
+
+##
+# Terminates the external PDF viewer.
+pdf_viewer_quit() {
+    pdf_viewer_command "exit"
+}
+
+
+##
+# Opens a new pane with a shell.
+shell_start() {
+    tmux select-pane -R
+    tmux split-window \
+        -v \
+        -c "$(pwd)/.."
+    tmux display-message -p "#{pane_id}" > "$SHELL_PANE_ID_PATH"
+}
+
+##
+# Closes the shell pane.
+shell_quit() {
+    tmux kill-pane -t "$(cat "$SHELL_PANE_ID_PATH")"
+}
+
+
+case "$STAGE" in
+    initialize)
+        initialize "$@"
+        ;;
+
+    update)
+        update "$@"
+        ;;
+
+    finalize)
+        finalize "$@"
+        ;;
+esac
