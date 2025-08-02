@@ -38,6 +38,7 @@ where
     let mut page = 0usize;
 
     configuration.commands.initialize(&path, configuration);
+    configuration.commands.update(&path, page + 1, pages.len());
 
     #[allow(unused_must_use)]
     loop {
