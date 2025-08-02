@@ -1,0 +1,249 @@
+#!/usr/bin/env python3
+
+import argparse
+import atexit
+import configparser
+import os
+import sys
+import time
+import threading
+
+from typing import IO
+
+import gi
+gi.require_version('Gdk', '3.0')
+gi.require_version('Gio', '2.0')
+gi.require_version('Gtk', '3.0')
+gi.require_version('Poppler', '0.18')
+
+from gi.repository import GLib, Gdk, Gio, Gtk, Poppler, cairo
+
+
+#: The default title.
+DEFAULT_TITLE = 'PDF Viewer'
+
+
+def main(
+        document: Poppler.Document,
+        fifo: IO,
+        background_color: Gdk.RGBA,
+        fullscreen: bool):
+    try:
+        Application(document, fifo, background_color, fullscreen).run([])
+    except ValueError as e:
+        sys.stderr.write('{}\n'.format(str(e)))
+        sys.exit(1)
+
+
+class Application(Gtk.Application):
+    def __init__(
+            self,
+            document: Poppler.Document,
+            fifo: IO,
+            background_color: Gdk.RGBA,
+            fullscreen: bool):
+        super(Application, self).__init__(
+            application_id='net.rupert.PDFViewer',
+            flags=Gio.ApplicationFlags.FLAGS_NONE)
+
+        self._document = document
+        self._fifo = fifo
+        self._background_color = background_color
+        self._fullscreen = fullscreen
+
+        self._screen = Gdk.Screen.get_default()
+        self._display = self._screen.get_display()
+        self._page = 0
+        self._monitor_num = self._locate_monitor(-1)
+
+    def do_activate(self, *_args):
+        Gtk.Application.do_activate(self)
+
+        window = self._window(self._document)
+        self.add_window(window)
+        view = self._view(self._background_color)
+        window.add(view)
+
+        def exit():
+            window.destroy()
+
+        def set_page(page: str):
+            try:
+                value = min(max(0, int(page) - 1), self._document.get_n_pages() - 1)
+            except ValueError:
+                warn('Invalid page number: {}', page)
+            else:
+                if value != self._page:
+                    self._page = value
+                    window.queue_draw()
+
+        self._start_server(
+            set_page=set_page,
+            exit=exit)
+
+        window.show_all()
+
+    def _view(self, background_color: Gdk.RGBA) -> Gtk.DrawingArea:
+        """Creates the PDF viewer.
+        """
+        result = Gtk.DrawingArea.new()
+
+        def draw(w, ctx):
+            page = self._current_page()
+            w_size = w.get_allocated_width(), w.get_allocated_height()
+            p_size = page.get_size()
+            ctx.set_source_rgba(
+                    background_color.red,
+                    background_color.green,
+                    background_color.blue)
+            ctx.rectangle(0, 0, *w_size)
+            ctx.fill()
+
+            # Ensure the page fills the centre of the widget
+            scale = min(
+                w_size[0] / p_size[0],
+                w_size[1] / p_size[1])
+            ctx.translate(
+                0.5 * (w_size[0] - scale * p_size[0]),
+                0.5 * (w_size[1] - scale * p_size[1]))
+            ctx.scale(scale, scale)
+
+            page.render(ctx)
+        result.connect('draw', draw)
+
+        return result
+
+    def _window(self, document: Poppler.Document) -> Gtk.ApplicationWindow:
+        """Creates the main window.
+        """
+        result = Gtk.ApplicationWindow(type=Gtk.WindowType.TOPLEVEL)
+
+        result.set_title(document.get_title() or DEFAULT_TITLE)
+
+        result.set_accept_focus(True)
+        result.set_decorated(False)
+        result.set_deletable(False)
+        result.set_keep_above(True)
+        result.set_skip_pager_hint(True)
+        result.set_skip_taskbar_hint(True)
+        result.set_visual(result.get_screen().get_rgba_visual())
+
+        if self._fullscreen:
+            result.set_type_hint(Gdk.WindowTypeHint.DOCK)
+            result.stick()
+            result.fullscreen_on_monitor(
+                self._screen,
+                self._monitor_num)
+
+        def delete_event(*_args):
+            self.quit()
+            return True
+        result.connect('delete-event', delete_event)
+
+        def destroy(*_args):
+            self.quit()
+            return True
+        result.connect('destroy', destroy)
+
+        return result
+
+    def _locate_monitor(self, monitor_num: int) -> int:
+        """Returns the index of the monitor to use.
+
+        If ``monitor_num`` has a value in the allowed range, this is returned,
+        otherwise the primary monitor is located. If that cannot be found,
+        ``0`` is returned.
+
+        :param monitor_num: The preferred monitor.
+        """
+        count = self._display.get_n_monitors()
+        if monitor_num >= 0 and monitor_num < count:
+            return monitor_num
+        else:
+            for n in range(count):
+                if self._display.get_monitor(n).is_primary():
+                    return n
+            return 0
+
+    def _start_server(self, **kwargs):
+        """Starts the FIFO server.
+
+        :param kwargs: A mapping from method name to callbacks.
+        """
+        def handler(method, *args):
+            try:
+                kwargs[method](*args)
+            except KeyError:
+                warn('Unknown method: {}', method)
+            except TypeError:
+                warn('Invalid arguments for method {}', name)
+
+        def runner():
+            for line in self._fifo[0]:
+                name, *args = line.rstrip().split(':')
+                method = name.replace('-', '_')
+                GLib.idle_add(handler, method, *args)
+
+        threading.Thread(target=runner, daemon=True).start()
+
+    def _current_page(self) -> Poppler.Page:
+        """The current page.
+        """
+        return self._document.get_page(self._page)
+
+
+def warn(m, *args):
+    sys.stderr.write('\033[0;31mWARN:\033[0m {}\n'.format(m.format(args)))
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description='Displays a PDF in fullscreen on a monitor',
+        epilog='''
+The running application does not react to any user input, but provides a
+FIFO for controlling.
+        ''')
+
+    def document(s: str) -> Poppler.Document:
+        try:
+            return Poppler.Document.new_from_file('file://{}'.format(
+                os.path.abspath(s)))
+        except Exception as e:
+            raise ValueError('failed to open "{}": {}'.format(s, e))
+    parser.add_argument(
+        'document',
+        help='The PDF document to display.',
+        type=document)
+
+    def fifo(s: str) -> IO:
+        # The first call to open will block until a writer appears; the second
+        # call is to prevent ourselves from seeing EOF once a writer closes
+        # the file
+        r = open(s, 'r')
+        w = open(s, 'w')
+        return (r, w)
+    parser.add_argument(
+        'fifo',
+        help='The FIFO to use for controlling the viewer.',
+        type=fifo)
+
+    def background_color(s: str) -> Gdk.RGBA:
+        r = Gdk.RGBA()
+        if not r.parse(s):
+            raise ValueError('invalid colour value: "{}"'.format(s))
+        else:
+            return r
+    parser.add_argument(
+        '--background-color',
+        help='The background colour as a CSS colour value.',
+        type=background_color,
+        default="white")
+
+    parser.add_argument(
+        '--fullscreen',
+        help='Run the application in full screen',
+        action='store_true')
+
+    Gtk.init([])
+    main(**vars(parser.parse_args()))
