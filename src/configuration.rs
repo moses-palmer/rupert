@@ -5,7 +5,7 @@ use std::ops::Range;
 use std::path::Path;
 use std::process;
 
-use rupert_macros::{Partial, partial_derive, partial_struct};
+use rupert_macros::{Partial, partial_derive};
 use serde::{Deserialize, Serialize};
 
 use crate::presentation;
