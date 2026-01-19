@@ -24,10 +24,7 @@ pub struct Presentation<'a> {
 /// # Arguments
 /// *  `arena` - The arena managing memory for the AST.
 /// *  `path` - The path to the document.
-pub fn load<'a, P>(
-    arena: &'a Arena<Node<'a, RefCell<Ast>>>,
-    path: P,
-) -> io::Result<Presentation<'a>>
+pub fn load<'a, P>(arena: &'a Arena<'a>, path: P) -> io::Result<Presentation<'a>>
 where
     P: AsRef<Path>,
 {
@@ -35,8 +32,8 @@ where
         root: comrak::parse_document(
             arena,
             &data,
-            &comrak::ComrakOptions {
-                extension: comrak::ComrakExtensionOptions {
+            &comrak::Options {
+                extension: comrak::options::Extension {
                     footnotes: true,
                     front_matter_delimiter: Some(FRONT_MATTER_DELIMITER.into()),
                     strikethrough: true,
