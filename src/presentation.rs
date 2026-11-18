@@ -32,16 +32,16 @@ where
         root: comrak::parse_document(
             arena,
             &data,
-            &comrak::Options {
-                extension: comrak::options::Extension {
-                    footnotes: true,
-                    front_matter_delimiter: Some(FRONT_MATTER_DELIMITER.into()),
-                    strikethrough: true,
-                    table: true,
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
+            &comrak::Options::builder()
+                .extension(
+                    comrak::options::Extension::builder()
+                        .footnotes(true)
+                        .front_matter_delimiter(FRONT_MATTER_DELIMITER.into())
+                        .strikethrough(true)
+                        .table(true)
+                        .build(),
+                )
+                .build(),
         ),
     })
 }
@@ -128,10 +128,10 @@ impl PageBreakCondition {
         use PageBreakCondition::*;
         match self {
             ThematicBreak => match node.data.borrow().value {
-                NodeValue::ThematicBreak => node.next_sibling(),
+                NodeValue::ThematicBreak(_) => node.next_sibling(),
                 _ => None,
             },
-            Heading { level } => match node.data.borrow().value {
+            Heading { level } => match &node.data.borrow().value {
                 NodeValue::Heading(h) if h.level == *level => Some(node),
                 _ => None,
             },

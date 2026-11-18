@@ -468,14 +468,14 @@ fn section<'a>(
             }
         }
 
-        NodeValue::TableRow(header) => {
+        NodeValue::TableRow(v) => {
             if let Some(Section::Table { rows, .. }) = target.last_mut() {
-                rows.push(TableRow::new(*header));
+                rows.push(TableRow::new(v.header));
                 sections(context, source, target, style);
             }
         }
 
-        NodeValue::ThematicBreak => {
+        NodeValue::ThematicBreak(_) => {
             target.push(Section::ThematicBreak);
         }
 
@@ -559,7 +559,7 @@ fn inline<'a>(
     match node {
         Code(code) => target.push(Span::raw(code.literal.to_owned())),
 
-        Emph => {
+        Emph(_) => {
             inlines(
                 context,
                 source,
@@ -589,11 +589,11 @@ fn inline<'a>(
 
         SoftBreak => target.push(Span::raw(" ")),
 
-        Strong => {
+        Strong(_) => {
             inlines(context, source, target, style.add_modifier(Modifier::BOLD));
         }
 
-        Strikethrough => {
+        Strikethrough(_) => {
             inlines(
                 context,
                 source,
